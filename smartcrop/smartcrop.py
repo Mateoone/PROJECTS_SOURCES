@@ -1,200 +1,406 @@
 #!/usr/bin/env python3
 """
-SmartCrop - Intelligent AI-powered batch image cropping for macOS
-Uses Claude claude-opus-4-6 (Anthropic) to detect subjects and compute optimal crops.
+SmartCrop – Recadrage intelligent par IA  (macOS)
+UI : CustomTkinter  |  IA : Claude claude-opus-4-6 (Anthropic)
 """
 
 import base64
 import json
 import os
+import subprocess
 import threading
 from io import BytesIO
 from pathlib import Path
 
 import anthropic
-import tkinter as tk
-from tkinter import filedialog, messagebox, scrolledtext, ttk
+import customtkinter as ctk
+from PIL import Image, ImageDraw, ImageTk
 
-try:
-    from PIL import Image, ImageTk
-except ImportError:
-    raise SystemExit("Pillow is required. Run: pip install Pillow")
+# ─── app-wide appearance ────────────────────────────────────────────────────
+ctk.set_appearance_mode("System")          # suit le thème macOS
+ctk.set_default_color_theme("blue")
 
 SUPPORTED_FORMATS = {".jpg", ".jpeg", ".png", ".webp", ".bmp", ".tiff", ".tif"}
-AI_MAX_PX = 1568  # max long-edge sent to Claude (keeps tokens manageable)
+AI_MAX_PX = 1568
 OUTPUT_QUALITY = 92
+THUMB_W, THUMB_H = 160, 110   # thumbnail size in the results grid
 
 
-class SmartCropApp:
-    def __init__(self, root: tk.Tk):
-        self.root = root
-        self.root.title("SmartCrop – Intelligent Cropping")
-        self.root.geometry("860x680")
-        self.root.resizable(True, True)
+# ════════════════════════════════════════════════════════════════════════════
+#  Main window
+# ════════════════════════════════════════════════════════════════════════════
+class SmartCropApp(ctk.CTk):
+    def __init__(self):
+        super().__init__()
+
+        self.title("SmartCrop")
+        self.geometry("1080x740")
+        self.minsize(860, 620)
 
         self._processing = False
-        self._auto_ai = False   # "Apply AI to all remaining ambiguous" flag
+        self._auto_ai = False
         self._client: anthropic.Anthropic | None = None
 
-        self.input_folder = tk.StringVar()
-        self.output_folder = tk.StringVar()
-        self.target_width = tk.IntVar(value=1200)
-        self.target_height = tk.IntVar(value=800)
-        self.conf_threshold = tk.DoubleVar(value=0.70)
+        # ── tkinter vars ──────────────────────────────────────────────────
+        self.v_src = ctk.StringVar()
+        self.v_dst = ctk.StringVar()
+        self.v_w   = ctk.StringVar(value="1200")
+        self.v_h   = ctk.StringVar(value="800")
+        self.v_conf = ctk.DoubleVar(value=0.70)
 
-        self._build_ui()
+        self._build_layout()
         self._init_client()
 
-    # ─────────────────────────────────────────────── client ──
+    # ──────────────────────────────────────────────────────── client ──────
 
     def _init_client(self):
         key = os.environ.get("ANTHROPIC_API_KEY", "")
         if key:
             self._client = anthropic.Anthropic(api_key=key)
         else:
-            messagebox.showwarning(
-                "API Key manquante",
-                "La variable d'environnement ANTHROPIC_API_KEY n'est pas définie.\n"
-                "Définissez-la puis relancez l'application.",
+            self._show_error(
+                "ANTHROPIC_API_KEY manquante",
+                "Définissez la variable d'environnement ANTHROPIC_API_KEY\n"
+                "puis relancez l'application.",
             )
 
-    # ─────────────────────────────────────────────── UI ──────
+    # ──────────────────────────────────────────────────────── layout ──────
 
-    def _build_ui(self):
-        style = ttk.Style()
-        style.theme_use("clam")
-        style.configure("Accent.TButton", font=("Helvetica", 12, "bold"))
+    def _build_layout(self):
+        self.grid_columnconfigure(0, weight=0)   # left sidebar
+        self.grid_columnconfigure(1, weight=1)   # right results panel
+        self.grid_rowconfigure(0, weight=0)      # header
+        self.grid_rowconfigure(1, weight=1)      # main content
+        self.grid_rowconfigure(2, weight=0)      # bottom bar
 
-        main = ttk.Frame(self.root, padding=12)
-        main.pack(fill=tk.BOTH, expand=True)
+        self._build_header()
+        self._build_sidebar()
+        self._build_results()
+        self._build_bottom()
 
-        ttk.Label(main, text="SmartCrop", font=("Helvetica", 22, "bold")).pack()
-        ttk.Label(
-            main,
+    # ── header ───────────────────────────────────────────────────────────
+
+    def _build_header(self):
+        hdr = ctk.CTkFrame(self, corner_radius=0, height=64,
+                           fg_color=("gray85", "gray20"))
+        hdr.grid(row=0, column=0, columnspan=2, sticky="ew")
+        hdr.grid_propagate(False)
+        hdr.grid_columnconfigure(1, weight=1)
+
+        # coloured accent stripe on left
+        stripe = ctk.CTkFrame(hdr, width=6, corner_radius=0,
+                              fg_color=("#2563EB", "#3B82F6"))
+        stripe.grid(row=0, column=0, sticky="ns")
+
+        ctk.CTkLabel(
+            hdr, text="  ✂  SmartCrop",
+            font=ctk.CTkFont(size=22, weight="bold"),
+        ).grid(row=0, column=1, padx=12, sticky="w")
+
+        ctk.CTkLabel(
+            hdr,
             text="Recadrage intelligent par IA · traitement par lot",
-            font=("Helvetica", 11),
-            foreground="#555",
-        ).pack(pady=(0, 12))
+            font=ctk.CTkFont(size=12),
+            text_color=("gray50", "gray60"),
+        ).grid(row=0, column=2, padx=4, sticky="w")
 
-        # ── settings ──────────────────────────────────────────
-        cfg = ttk.LabelFrame(main, text="Configuration", padding=10)
-        cfg.pack(fill=tk.X, pady=(0, 8))
+        # appearance toggle
+        self._mode_btn = ctk.CTkButton(
+            hdr, text="☀ / ☾", width=80, height=30,
+            fg_color="transparent", border_width=1,
+            command=self._toggle_mode,
+        )
+        self._mode_btn.grid(row=0, column=3, padx=12, sticky="e")
 
-        def row(parent, label, var, width=50, is_browse=None):
-            f = ttk.Frame(parent)
-            f.pack(fill=tk.X, pady=3)
-            ttk.Label(f, text=label, width=18, anchor="w").pack(side=tk.LEFT)
-            ttk.Entry(f, textvariable=var, width=width).pack(side=tk.LEFT, padx=4)
-            if is_browse:
-                ttk.Button(f, text="…", width=3, command=is_browse).pack(side=tk.LEFT)
+    # ── sidebar ──────────────────────────────────────────────────────────
 
-        row(cfg, "Dossier source :", self.input_folder, is_browse=self._browse_input)
-        row(cfg, "Dossier sortie :", self.output_folder, is_browse=self._browse_output)
+    def _build_sidebar(self):
+        sb = ctk.CTkFrame(self, width=320, corner_radius=0,
+                          fg_color=("gray93", "gray15"))
+        sb.grid(row=1, column=0, sticky="nsw", padx=0, pady=0)
+        sb.grid_propagate(False)
+        sb.grid_rowconfigure(99, weight=1)   # spacer at bottom
 
-        size_row = ttk.Frame(cfg)
-        size_row.pack(fill=tk.X, pady=3)
-        ttk.Label(size_row, text="Taille cible :", width=18, anchor="w").pack(side=tk.LEFT)
-        ttk.Label(size_row, text="Largeur :").pack(side=tk.LEFT)
-        ttk.Entry(size_row, textvariable=self.target_width, width=7).pack(side=tk.LEFT, padx=4)
-        ttk.Label(size_row, text="Hauteur :").pack(side=tk.LEFT)
-        ttk.Entry(size_row, textvariable=self.target_height, width=7).pack(side=tk.LEFT, padx=4)
-        ttk.Label(size_row, text="px").pack(side=tk.LEFT)
+        pad = {"padx": 18, "pady": 6}
 
-        thresh_row = ttk.Frame(cfg)
-        thresh_row.pack(fill=tk.X, pady=3)
-        ttk.Label(thresh_row, text="Seuil confiance :", width=18, anchor="w").pack(side=tk.LEFT)
-        ttk.Scale(
-            thresh_row,
-            from_=0,
-            to=1,
-            variable=self.conf_threshold,
-            orient=tk.HORIZONTAL,
-            length=180,
-        ).pack(side=tk.LEFT, padx=4)
-        ttk.Label(thresh_row, textvariable=self._conf_label()).pack(side=tk.LEFT)
+        # ── section: dossiers ─────────────────────────────────────────
+        self._section_label(sb, "DOSSIERS").grid(row=0, column=0, **pad, sticky="w", pady=(18, 2))
 
-        # ── actions ───────────────────────────────────────────
-        btn_row = ttk.Frame(main)
-        btn_row.pack(fill=tk.X, pady=6)
+        ctk.CTkLabel(sb, text="Source", anchor="w",
+                     font=ctk.CTkFont(size=12)).grid(row=1, column=0, padx=18, sticky="w")
+        src_row = ctk.CTkFrame(sb, fg_color="transparent")
+        src_row.grid(row=2, column=0, padx=14, pady=(0, 4), sticky="ew")
+        src_row.grid_columnconfigure(0, weight=1)
+        ctk.CTkEntry(src_row, textvariable=self.v_src, placeholder_text="Choisir…",
+                     height=32).grid(row=0, column=0, sticky="ew")
+        ctk.CTkButton(src_row, text="…", width=32, height=32,
+                      command=self._browse_src).grid(row=0, column=1, padx=(4, 0))
 
-        self._start_btn = ttk.Button(
-            btn_row,
-            text="▶  Démarrer",
-            style="Accent.TButton",
+        ctk.CTkLabel(sb, text="Sortie", anchor="w",
+                     font=ctk.CTkFont(size=12)).grid(row=3, column=0, padx=18, sticky="w")
+        dst_row = ctk.CTkFrame(sb, fg_color="transparent")
+        dst_row.grid(row=4, column=0, padx=14, pady=(0, 4), sticky="ew")
+        dst_row.grid_columnconfigure(0, weight=1)
+        ctk.CTkEntry(dst_row, textvariable=self.v_dst, placeholder_text="Choisir…",
+                     height=32).grid(row=0, column=0, sticky="ew")
+        ctk.CTkButton(dst_row, text="…", width=32, height=32,
+                      command=self._browse_dst).grid(row=0, column=1, padx=(4, 0))
+
+        self._sep(sb).grid(row=5, column=0, padx=18, pady=10, sticky="ew")
+
+        # ── section: taille cible ─────────────────────────────────────
+        self._section_label(sb, "TAILLE CIBLE").grid(row=6, column=0, **pad, sticky="w", pady=(0, 2))
+
+        size_frame = ctk.CTkFrame(sb, fg_color="transparent")
+        size_frame.grid(row=7, column=0, padx=14, pady=(0, 4), sticky="ew")
+        size_frame.grid_columnconfigure((0, 1, 2, 3), weight=1)
+
+        ctk.CTkLabel(size_frame, text="L", font=ctk.CTkFont(size=12)).grid(row=0, column=0, padx=(0, 2))
+        ctk.CTkEntry(size_frame, textvariable=self.v_w, width=70, height=32,
+                     justify="center").grid(row=0, column=1, padx=2)
+        ctk.CTkLabel(size_frame, text="H", font=ctk.CTkFont(size=12)).grid(row=0, column=2, padx=(8, 2))
+        ctk.CTkEntry(size_frame, textvariable=self.v_h, width=70, height=32,
+                     justify="center").grid(row=0, column=3, padx=2)
+
+        # ratio preview
+        self._ratio_label = ctk.CTkLabel(sb, text="Ratio : 3:2",
+                                          font=ctk.CTkFont(size=11),
+                                          text_color=("gray50", "gray55"))
+        self._ratio_label.grid(row=8, column=0, padx=18, sticky="w")
+        self.v_w.trace_add("write", self._update_ratio)
+        self.v_h.trace_add("write", self._update_ratio)
+
+        self._sep(sb).grid(row=9, column=0, padx=18, pady=10, sticky="ew")
+
+        # ── section: confiance ────────────────────────────────────────
+        self._section_label(sb, "SEUIL DE CONFIANCE").grid(row=10, column=0, **pad, sticky="w", pady=(0, 2))
+
+        self._conf_lbl = ctk.CTkLabel(sb, text="70 %", font=ctk.CTkFont(size=13, weight="bold"))
+        self._conf_lbl.grid(row=11, column=0, padx=18, sticky="w")
+
+        self._slider = ctk.CTkSlider(sb, from_=0, to=1, variable=self.v_conf,
+                                      command=self._on_conf_change)
+        self._slider.grid(row=12, column=0, padx=14, pady=(2, 2), sticky="ew")
+
+        ctk.CTkLabel(sb, text="En dessous, l'IA vous demande de choisir.",
+                     font=ctk.CTkFont(size=11),
+                     text_color=("gray50", "gray55"),
+                     wraplength=270).grid(row=13, column=0, padx=18, sticky="w")
+
+        self._sep(sb).grid(row=14, column=0, padx=18, pady=10, sticky="ew")
+
+        # ── section: actions ──────────────────────────────────────────
+        self._start_btn = ctk.CTkButton(
+            sb, text="▶  Démarrer", height=40,
+            font=ctk.CTkFont(size=14, weight="bold"),
             command=self._start,
         )
-        self._start_btn.pack(side=tk.LEFT, padx=4)
+        self._start_btn.grid(row=15, column=0, padx=14, pady=(0, 6), sticky="ew")
 
-        self._stop_btn = ttk.Button(
-            btn_row, text="■  Arrêter", command=self._stop, state=tk.DISABLED
+        self._stop_btn = ctk.CTkButton(
+            sb, text="■  Arrêter", height=36,
+            fg_color=("gray70", "gray35"), hover_color=("gray60", "gray45"),
+            state="disabled", command=self._stop,
         )
-        self._stop_btn.pack(side=tk.LEFT, padx=4)
+        self._stop_btn.grid(row=16, column=0, padx=14, pady=(0, 6), sticky="ew")
 
-        # ── progress ──────────────────────────────────────────
-        prog = ttk.LabelFrame(main, text="Progression", padding=8)
-        prog.pack(fill=tk.X, pady=(0, 8))
-
-        self._progress_var = tk.DoubleVar()
-        ttk.Progressbar(prog, variable=self._progress_var, maximum=100).pack(fill=tk.X)
-        self._status = ttk.Label(prog, text="Prêt")
-        self._status.pack()
-
-        # ── log ───────────────────────────────────────────────
-        log_frame = ttk.LabelFrame(main, text="Journal", padding=4)
-        log_frame.pack(fill=tk.BOTH, expand=True)
-
-        self._log = scrolledtext.ScrolledText(
-            log_frame, height=14, state=tk.DISABLED, font=("Courier", 10)
+        self._open_btn = ctk.CTkButton(
+            sb, text="📁  Ouvrir le dossier de sortie", height=32,
+            fg_color="transparent", border_width=1,
+            command=self._open_output,
         )
-        self._log.pack(fill=tk.BOTH, expand=True)
-        self._log.tag_config("ok", foreground="#1a7a1a")
-        self._log.tag_config("err", foreground="#cc0000")
-        self._log.tag_config("warn", foreground="#cc7700")
-        self._log.tag_config("info", foreground="#003399")
+        self._open_btn.grid(row=17, column=0, padx=14, pady=(0, 4), sticky="ew")
 
-    def _conf_label(self):
-        """Returns a StringVar that tracks conf_threshold display."""
-        lbl = tk.StringVar()
+    # ── results panel ────────────────────────────────────────────────────
 
-        def _update(*_):
-            lbl.set(f"{self.conf_threshold.get():.0%}")
+    def _build_results(self):
+        right = ctk.CTkFrame(self, fg_color=("gray97", "gray12"), corner_radius=0)
+        right.grid(row=1, column=1, sticky="nsew")
+        right.grid_rowconfigure(1, weight=1)
+        right.grid_columnconfigure(0, weight=1)
 
-        self.conf_threshold.trace_add("write", _update)
-        _update()
-        return lbl
+        # stats row
+        stats = ctk.CTkFrame(right, fg_color="transparent", height=36)
+        stats.grid(row=0, column=0, sticky="ew", padx=16, pady=(12, 0))
+        stats.grid_propagate(False)
 
-    # ─────────────────────────────────────────────── browse ──
+        self._stat_total  = self._stat_chip(stats, "0", "images",  col=0)
+        self._stat_ok     = self._stat_chip(stats, "0", "✓ ok",    col=1, color="#16a34a")
+        self._stat_warn   = self._stat_chip(stats, "0", "⚠ alertes", col=2, color="#b45309")
+        self._stat_err    = self._stat_chip(stats, "0", "✗ erreurs", col=3, color="#dc2626")
 
-    def _browse_input(self):
-        folder = filedialog.askdirectory(title="Sélectionner le dossier source")
+        # scrollable thumbnail grid
+        self._thumb_grid = ctk.CTkScrollableFrame(
+            right, fg_color="transparent", label_text=""
+        )
+        self._thumb_grid.grid(row=1, column=0, sticky="nsew", padx=8, pady=8)
+        self._thumb_col = 0
+        self._thumb_row = 0
+        self._thumb_max_cols = 5
+
+        # log
+        self._log_box = ctk.CTkTextbox(right, height=140, font=ctk.CTkFont(family="Courier", size=11),
+                                        wrap="word", state="disabled",
+                                        fg_color=("gray90", "gray18"))
+        self._log_box.grid(row=2, column=0, sticky="ew", padx=8, pady=(0, 8))
+        # colour tags via underlying tk widget
+        self._log_box._textbox.tag_config("ok",   foreground="#16a34a")
+        self._log_box._textbox.tag_config("err",  foreground="#dc2626")
+        self._log_box._textbox.tag_config("warn", foreground="#b45309")
+        self._log_box._textbox.tag_config("info", foreground="#2563EB")
+
+    def _stat_chip(self, parent, number, label, col, color=None):
+        """Returns a (number_label, ) tuple for a stat chip."""
+        f = ctk.CTkFrame(parent, corner_radius=8, fg_color=("gray85", "gray22"))
+        f.grid(row=0, column=col, padx=6, sticky="w")
+        kw = {"text_color": color} if color else {}
+        n = ctk.CTkLabel(f, text=number, font=ctk.CTkFont(size=18, weight="bold"), **kw)
+        n.grid(row=0, column=0, padx=(10, 4), pady=4)
+        ctk.CTkLabel(f, text=label, font=ctk.CTkFont(size=11),
+                     text_color=("gray50", "gray55")).grid(row=0, column=1, padx=(0, 10), pady=4)
+        return n
+
+    # ── bottom bar ───────────────────────────────────────────────────────
+
+    def _build_bottom(self):
+        bar = ctk.CTkFrame(self, height=52, corner_radius=0,
+                           fg_color=("gray85", "gray20"))
+        bar.grid(row=2, column=0, columnspan=2, sticky="ew")
+        bar.grid_propagate(False)
+        bar.grid_columnconfigure(1, weight=1)
+
+        self._progress = ctk.CTkProgressBar(bar, height=10, corner_radius=5)
+        self._progress.set(0)
+        self._progress.grid(row=0, column=0, columnspan=3, padx=16, pady=(10, 2), sticky="ew")
+
+        self._status_lbl = ctk.CTkLabel(bar, text="Prêt",
+                                         font=ctk.CTkFont(size=11),
+                                         text_color=("gray50", "gray55"))
+        self._status_lbl.grid(row=1, column=0, padx=16, sticky="w")
+
+    # ──────────────────────────────────────────────────────── helpers ─────
+
+    def _section_label(self, parent, text):
+        return ctk.CTkLabel(parent, text=text,
+                            font=ctk.CTkFont(size=10, weight="bold"),
+                            text_color=("gray50", "gray55"))
+
+    def _sep(self, parent):
+        return ctk.CTkFrame(parent, height=1, fg_color=("gray80", "gray25"))
+
+    def _toggle_mode(self):
+        mode = "Dark" if ctk.get_appearance_mode() == "Light" else "Light"
+        ctk.set_appearance_mode(mode)
+
+    def _update_ratio(self, *_):
+        try:
+            w, h = int(self.v_w.get()), int(self.v_h.get())
+            from math import gcd
+            d = gcd(w, h)
+            self._ratio_label.configure(text=f"Ratio : {w//d}:{h//d}")
+        except Exception:
+            self._ratio_label.configure(text="Ratio : –")
+
+    def _on_conf_change(self, val):
+        self._conf_lbl.configure(text=f"{float(val):.0%}")
+
+    def _browse_src(self):
+        from tkinter import filedialog
+        folder = filedialog.askdirectory(title="Dossier source")
         if folder:
-            self.input_folder.set(folder)
-            if not self.output_folder.get():
-                self.output_folder.set(os.path.join(folder, "smartcrop_output"))
+            self.v_src.set(folder)
+            if not self.v_dst.get():
+                self.v_dst.set(os.path.join(folder, "smartcrop_output"))
 
-    def _browse_output(self):
-        folder = filedialog.askdirectory(title="Sélectionner le dossier de sortie")
+    def _browse_dst(self):
+        from tkinter import filedialog
+        folder = filedialog.askdirectory(title="Dossier de sortie")
         if folder:
-            self.output_folder.set(folder)
+            self.v_dst.set(folder)
 
-    # ─────────────────────────────────────────────── log ─────
+    def _open_output(self):
+        dst = self.v_dst.get()
+        if dst and Path(dst).exists():
+            subprocess.Popen(["open", dst])
 
-    def _write_log(self, msg: str, tag: str | None = None):
-        self._log.config(state=tk.NORMAL)
-        self._log.insert(tk.END, msg + "\n", tag or "")
-        self._log.see(tk.END)
-        self._log.config(state=tk.DISABLED)
+    def _show_error(self, title, msg):
+        from tkinter import messagebox
+        messagebox.showerror(title, msg)
 
-    def _log_main(self, msg: str, tag: str | None = None):
-        """Thread-safe log write."""
-        self.root.after(0, self._write_log, msg, tag)
+    # ──────────────────────────────────────────────────────── log ─────────
+
+    def _log(self, msg: str, tag: str | None = None):
+        self._log_box.configure(state="normal")
+        if tag:
+            self._log_box._textbox.insert("end", msg + "\n", tag)
+        else:
+            self._log_box._textbox.insert("end", msg + "\n")
+        self._log_box._textbox.see("end")
+        self._log_box.configure(state="disabled")
+
+    def _log_t(self, msg: str, tag: str | None = None):
+        self.after(0, self._log, msg, tag)
 
     def _set_status(self, text: str, progress: float | None = None):
-        self._status.config(text=text)
+        self._status_lbl.configure(text=text)
         if progress is not None:
-            self._progress_var.set(progress)
+            self._progress.set(progress)
 
-    # ─────────────────────────────────────────────── control ─
+    # ──────────────────────────────────────────────────────── stats ───────
+
+    def _reset_stats(self, total):
+        self._n_total = total; self._n_ok = 0; self._n_warn = 0; self._n_err = 0
+        self._refresh_stats()
+
+    def _refresh_stats(self):
+        self._stat_total.configure(text=str(self._n_total))
+        self._stat_ok.configure(text=str(self._n_ok))
+        self._stat_warn.configure(text=str(self._n_warn))
+        self._stat_err.configure(text=str(self._n_err))
+
+    # ──────────────────────────────────────────────────────── thumbnails ──
+
+    def _add_thumbnail(self, img_path: Path, crop_box: tuple, status: str):
+        """Add a result thumbnail to the grid (called from main thread)."""
+        size = (THUMB_W, THUMB_H)
+        try:
+            with Image.open(img_path) as img:
+                img = _to_rgb(img)
+                cropped = img.crop(crop_box).resize(size, Image.LANCZOS)
+        except Exception:
+            cropped = Image.new("RGB", size, color=(200, 200, 200))
+
+        # overlay coloured border
+        color = {"ok": "#16a34a", "warn": "#b45309", "err": "#dc2626"}.get(status, "#888")
+        draw = ImageDraw.Draw(cropped)
+        draw.rectangle([0, 0, size[0] - 1, size[1] - 1], outline=color, width=3)
+
+        photo = ctk.CTkImage(light_image=cropped, dark_image=cropped, size=size)
+
+        cell = ctk.CTkFrame(self._thumb_grid, fg_color="transparent")
+        cell.grid(row=self._thumb_row, column=self._thumb_col, padx=4, pady=4)
+
+        lbl_img = ctk.CTkLabel(cell, image=photo, text="")
+        lbl_img.image = photo
+        lbl_img.pack()
+
+        name = img_path.stem
+        name_display = name[:18] + "…" if len(name) > 19 else name
+        ctk.CTkLabel(cell, text=name_display, font=ctk.CTkFont(size=10),
+                     text_color=("gray50", "gray55")).pack()
+
+        self._thumb_col += 1
+        if self._thumb_col >= self._thumb_max_cols:
+            self._thumb_col = 0
+            self._thumb_row += 1
+
+    def _clear_thumbnails(self):
+        for w in self._thumb_grid.winfo_children():
+            w.destroy()
+        self._thumb_col = 0
+        self._thumb_row = 0
+
+    # ──────────────────────────────────────────────────────── control ─────
 
     def _start(self):
         if not self._client:
@@ -202,140 +408,131 @@ class SmartCropApp:
             if not self._client:
                 return
 
-        src = self.input_folder.get().strip()
-        dst = self.output_folder.get().strip()
+        src = self.v_src.get().strip()
+        dst = self.v_dst.get().strip()
         if not src:
-            messagebox.showerror("Erreur", "Veuillez sélectionner un dossier source.")
+            self._show_error("Erreur", "Sélectionner un dossier source.")
             return
         if not dst:
-            messagebox.showerror("Erreur", "Veuillez sélectionner un dossier de sortie.")
+            self._show_error("Erreur", "Sélectionner un dossier de sortie.")
             return
         try:
-            w, h = self.target_width.get(), self.target_height.get()
+            w, h = int(self.v_w.get()), int(self.v_h.get())
             assert w > 0 and h > 0
         except Exception:
-            messagebox.showerror("Erreur", "Largeur et hauteur doivent être des entiers positifs.")
+            self._show_error("Erreur", "Largeur et hauteur doivent être des entiers > 0.")
             return
 
-        images = []
-        for ext in SUPPORTED_FORMATS:
-            images.extend(Path(src).glob(f"*{ext}"))
-            images.extend(Path(src).glob(f"*{ext.upper()}"))
-        images = sorted(set(images))
-
+        images = sorted({
+            p for ext in SUPPORTED_FORMATS
+            for p in list(Path(src).glob(f"*{ext}")) + list(Path(src).glob(f"*{ext.upper()}"))
+        })
         if not images:
-            messagebox.showinfo("Aucune image", "Aucun fichier image trouvé dans le dossier source.")
+            from tkinter import messagebox
+            messagebox.showinfo("Aucune image", "Aucun fichier image trouvé.")
             return
 
         Path(dst).mkdir(parents=True, exist_ok=True)
 
         self._processing = True
-        self._auto_ai = False
-        self._start_btn.config(state=tk.DISABLED)
-        self._stop_btn.config(state=tk.NORMAL)
+        self._auto_ai   = False
+        self._start_btn.configure(state="disabled")
+        self._stop_btn.configure(state="normal")
+        self._clear_thumbnails()
+        self._reset_stats(len(images))
+        self._log_box.configure(state="normal")
+        self._log_box.delete("1.0", "end")
+        self._log_box.configure(state="disabled")
+        self._log(f"Traitement de {len(images)} image(s)  →  {w}×{h} px", "info")
+        self._log(f"Sortie : {dst}", "info")
+        self._log("─" * 60)
 
-        self._log.config(state=tk.NORMAL)
-        self._log.delete("1.0", tk.END)
-        self._log.config(state=tk.DISABLED)
-
-        self._write_log(f"Traitement de {len(images)} image(s)  →  {w}×{h} px", "info")
-        self._write_log(f"Sortie : {dst}", "info")
-        self._write_log("─" * 60)
-
-        threading.Thread(
-            target=self._batch, args=(images, dst, w, h), daemon=True
-        ).start()
+        threading.Thread(target=self._batch, args=(images, dst, w, h), daemon=True).start()
 
     def _stop(self):
         self._processing = False
-        self._log_main("Arrêt demandé – en attente de la fin de l'image courante…", "warn")
+        self._log_t("Arrêt demandé…", "warn")
 
-    # ─────────────────────────────────────────────── batch ───
+    # ──────────────────────────────────────────────────────── batch ───────
 
-    def _batch(self, images: list, dst: str, w: int, h: int):
-        ok = fail = skip = 0
-        total = len(images)
-
+    def _batch(self, images, dst, w, h):
         for i, path in enumerate(images):
             if not self._processing:
                 break
-            self.root.after(
-                0,
-                self._set_status,
-                f"{i + 1}/{total}  {path.name}",
-                i / total * 100,
-            )
-            self._log_main(f"◆ {path.name}")
+            self.after(0, self._set_status, f"{i+1}/{len(images)}  –  {path.name}",
+                       i / len(images))
+            self._log_t(f"◆ {path.name}")
 
             try:
-                res = self._process_one(path, dst, w, h)
-                if res == "ok":
-                    ok += 1
-                    self._log_main("  ✓ Enregistré", "ok")
+                crop_box, status = self._process_one(path, dst, w, h)
+                if status == "ok":
+                    self._n_ok += 1
+                    self._log_t("  ✓ Enregistré", "ok")
                 else:
-                    skip += 1
-                    self._log_main("  ↷ Ignoré par l'utilisateur", "warn")
+                    self._n_warn += 1
+                    self._log_t("  ↷ Ignoré", "warn")
+                self.after(0, self._add_thumbnail, path, crop_box, status)
             except Exception as exc:
-                fail += 1
-                self._log_main(f"  ✗ Erreur : {exc}", "err")
+                self._n_err += 1
+                self._log_t(f"  ✗ {exc}", "err")
 
-        self.root.after(0, self._finish, ok, fail, skip)
+            self.after(0, self._refresh_stats)
 
-    def _finish(self, ok: int, fail: int, skip: int):
+        self.after(0, self._finish)
+
+    def _finish(self):
         self._processing = False
-        self._start_btn.config(state=tk.NORMAL)
-        self._stop_btn.config(state=tk.DISABLED)
+        self._start_btn.configure(state="normal")
+        self._stop_btn.configure(state="disabled")
+        self._log("─" * 60)
+        self._log(
+            f"Terminé  ✓ {self._n_ok}  ↷ {self._n_warn}  ✗ {self._n_err}", "ok"
+        )
+        self._set_status(
+            f"Terminé : {self._n_ok} ok, {self._n_warn} ignorés, {self._n_err} erreurs", 1.0
+        )
 
-        self._write_log("─" * 60)
-        self._write_log(f"Terminé  ✓ {ok}  ✗ {fail}  ↷ {skip}", "ok")
-        self._set_status(f"Terminé : {ok} enregistré(s), {fail} erreur(s), {skip} ignoré(s)", 100)
+    # ──────────────────────────────────────────────────────── single ──────
 
-    # ─────────────────────────────────────────────── single image ─
-
-    def _process_one(self, path: Path, dst: str, target_w: int, target_h: int) -> str:
+    def _process_one(self, path: Path, dst: str, tw: int, th: int):
         with Image.open(path) as img:
             img = _to_rgb(img)
-            orig_w, orig_h = img.size
+            iw, ih = img.size
 
-        analysis = self._analyze(path, target_w, target_h, orig_w, orig_h)
-
-        conf = float(analysis.get("confidence", 1.0))
-        desc = analysis.get("subject_description", "–")
+        analysis = self._analyze(path, tw, th, iw, ih)
+        conf  = float(analysis.get("confidence", 1.0))
+        desc  = analysis.get("subject_description", "–")
         notes = analysis.get("notes", "")
-        self._log_main(f"  Sujet : {desc}  (confiance {conf:.0%})")
-        if notes:
-            self._log_main(f"  Note : {notes}", "warn")
 
-        threshold = self.conf_threshold.get()
+        self._log_t(f"  Sujet : {desc}  ({conf:.0%})")
+        if notes:
+            self._log_t(f"  Note : {notes}", "warn")
+
+        threshold = self.v_conf.get()
         use_ai = True
 
         if conf < threshold and not self._auto_ai:
-            choice = self._ask_user(path, analysis, orig_w, orig_h, target_w, target_h)
+            choice = self._ask_user(path, analysis, iw, ih, tw, th)
             if choice == "skip":
-                return "skip"
+                box = _center_crop_box(iw, ih, tw / th)   # still return a box for thumbnail
+                return box, "warn"
             elif choice == "center":
                 use_ai = False
             elif choice == "ai_all":
                 self._auto_ai = True
-                use_ai = True
-            # "ai" → use_ai = True already
 
-        if use_ai:
-            box = _ai_crop_box(analysis, orig_w, orig_h, target_w, target_h)
-        else:
-            box = _center_crop_box(orig_w, orig_h, target_w / target_h)
+        box = _ai_crop_box(analysis, iw, ih, tw, th) if use_ai \
+              else _center_crop_box(iw, ih, tw / th)
 
         with Image.open(path) as img:
             img = _to_rgb(img)
-            cropped = img.crop(box)
-            resized = cropped.resize((target_w, target_h), Image.LANCZOS)
-            out_name = path.stem + "_smartcrop.jpg"
-            resized.save(
-                Path(dst) / out_name, "JPEG", quality=OUTPUT_QUALITY, optimize=True
-            )
-        return "ok"
+            out = img.crop(box).resize((tw, th), Image.LANCZOS)
+            out.save(Path(dst) / (path.stem + "_smartcrop.jpg"),
+                     "JPEG", quality=OUTPUT_QUALITY, optimize=True)
 
-    # ─────────────────────────────────────────────── AI ──────
+        return box, "ok"
+
+    # ──────────────────────────────────────────────────────── AI ──────────
 
     def _encode_for_api(self, path: Path) -> str:
         with Image.open(path) as img:
@@ -344,264 +541,191 @@ class SmartCropApp:
                 img.thumbnail((AI_MAX_PX, AI_MAX_PX), Image.LANCZOS)
             buf = BytesIO()
             img.save(buf, format="JPEG", quality=85)
-            return base64.standard_b64encode(buf.getvalue()).decode()
+        return base64.standard_b64encode(buf.getvalue()).decode()
 
-    def _analyze(
-        self, path: Path, tw: int, th: int, iw: int, ih: int
-    ) -> dict:
+    def _analyze(self, path: Path, tw: int, th: int, iw: int, ih: int) -> dict:
         ratio = tw / th
-        b64 = self._encode_for_api(path)
-
         prompt = f"""You are an expert image cropping assistant.
-Analyze the image and identify the main subject for smart cropping.
+Analyse the image and identify the main subject for smart cropping.
 
-Target output ratio: {tw}:{th}  (width/height = {ratio:.4f})
-Original image size: {iw}×{ih} px
+Target ratio: {tw}:{th}  (width/height = {ratio:.4f})
+Original size: {iw}×{ih} px
 
 Return ONLY a JSON object with these exact keys:
 {{
-  "subject_box": {{
-    "x1": <float 0-1, left edge of subject>,
-    "y1": <float 0-1, top edge of subject>,
-    "x2": <float 0-1, right edge of subject>,
-    "y2": <float 0-1, bottom edge of subject>
-  }},
-  "optimal_crop": {{
-    "x1": <float 0-1, left edge of best crop>,
-    "y1": <float 0-1, top edge of best crop>,
-    "x2": <float 0-1, right edge of best crop>,
-    "y2": <float 0-1, bottom edge of best crop>
-  }},
-  "confidence": <float 0-1>,
-  "subject_description": "<brief description>",
-  "notes": "<concerns, ambiguities, or empty string>"
+  "subject_box":   {{"x1":<0-1>,"y1":<0-1>,"x2":<0-1>,"y2":<0-1>}},
+  "optimal_crop":  {{"x1":<0-1>,"y1":<0-1>,"x2":<0-1>,"y2":<0-1>}},
+  "confidence": <0.0-1.0>,
+  "subject_description": "<brief>",
+  "notes": "<concerns or empty>"
 }}
-
 Rules:
-- optimal_crop MUST respect the aspect ratio {ratio:.4f} (width/height)
-- Centre the crop on the most visually important region
-- If multiple competing subjects or the choice is unclear, set confidence < 0.70
-- Return ONLY the JSON, no markdown, no other text."""
+- optimal_crop must respect aspect ratio {ratio:.4f}
+- Centre on the most visually important region
+- Set confidence < 0.70 when the crop choice is not obvious
+- Return ONLY the JSON, no markdown."""
 
         response = self._client.messages.create(
             model="claude-opus-4-6",
             max_tokens=1024,
             thinking={"type": "adaptive"},
-            messages=[
-                {
-                    "role": "user",
-                    "content": [
-                        {
-                            "type": "image",
-                            "source": {
-                                "type": "base64",
-                                "media_type": "image/jpeg",
-                                "data": b64,
-                            },
-                        },
-                        {"type": "text", "text": prompt},
-                    ],
-                }
-            ],
+            messages=[{
+                "role": "user",
+                "content": [
+                    {"type": "image",
+                     "source": {"type": "base64", "media_type": "image/jpeg",
+                                "data": self._encode_for_api(path)}},
+                    {"type": "text", "text": prompt},
+                ],
+            }],
         )
-
-        text = next(b.text for b in response.content if b.type == "text")
-        text = text.strip()
-        # Strip possible markdown fences
+        text = next(b.text for b in response.content if b.type == "text").strip()
         if text.startswith("```"):
             parts = text.split("```")
             text = parts[1].lstrip("json").strip() if len(parts) > 1 else text
         return json.loads(text)
 
-    # ─────────────────────────────────────────────── alert dialog ─
+    # ──────────────────────────────────────────────────────── alert ───────
 
-    def _ask_user(
-        self,
-        path: Path,
-        analysis: dict,
-        iw: int,
-        ih: int,
-        tw: int,
-        th: int,
-    ) -> str:
+    def _ask_user(self, path, analysis, iw, ih, tw, th) -> str:
         result = {"choice": None}
-        event = threading.Event()
+        event  = threading.Event()
 
         def _show():
-            dlg = tk.Toplevel(self.root)
-            dlg.title("Choix de recadrage requis")
-            dlg.geometry("720x520")
+            dlg = ctk.CTkToplevel(self)
+            dlg.title("Choix de recadrage")
+            dlg.geometry("740x530")
             dlg.resizable(False, False)
             dlg.grab_set()
-            dlg.transient(self.root)
+            dlg.transient(self)
 
-            pad = ttk.Frame(dlg, padding=14)
-            pad.pack(fill=tk.BOTH, expand=True)
-
-            ttk.Label(
-                pad,
-                text=f"⚠  Choix ambigu : {path.name}",
-                font=("Helvetica", 13, "bold"),
-            ).pack(pady=(0, 4))
+            # header
+            ctk.CTkLabel(
+                dlg, text=f"⚠  Crop ambigu : {path.name}",
+                font=ctk.CTkFont(size=15, weight="bold"),
+            ).pack(pady=(16, 4))
 
             info = (
-                f"Sujet détecté : {analysis.get('subject_description', '–')}\n"
-                f"Confiance : {analysis.get('confidence', 0):.0%}\n"
+                f"Sujet : {analysis.get('subject_description', '–')}   "
+                f"Confiance : {analysis.get('confidence', 0):.0%}"
             )
             if analysis.get("notes"):
-                info += f"Note IA : {analysis['notes']}"
-            ttk.Label(pad, text=info, wraplength=680, justify=tk.LEFT).pack(pady=4)
+                info += f"\n{analysis['notes']}"
+            ctk.CTkLabel(dlg, text=info, wraplength=680,
+                         font=ctk.CTkFont(size=12),
+                         text_color=("gray45", "gray60")).pack(pady=(0, 8))
 
             # previews
-            preview_frame = ttk.Frame(pad)
-            preview_frame.pack(fill=tk.BOTH, expand=True, pady=8)
+            prev_frame = ctk.CTkFrame(dlg, fg_color="transparent")
+            prev_frame.pack(expand=True, fill="both", padx=16)
 
-            PREV = (300, 210)
+            PREV = (320, 220)
             try:
                 with Image.open(path) as img:
                     img = _to_rgb(img)
-
-                    ai_box = _ai_crop_box(analysis, iw, ih, tw, th)
+                    ai_box  = _ai_crop_box(analysis, iw, ih, tw, th)
                     ctr_box = _center_crop_box(iw, ih, tw / th)
+                    ai_pil  = img.crop(ai_box).resize(PREV, Image.LANCZOS)
+                    ctr_pil = img.crop(ctr_box).resize(PREV, Image.LANCZOS)
 
-                    ai_prev = ImageTk.PhotoImage(img.crop(ai_box).resize(PREV, Image.LANCZOS))
-                    ctr_prev = ImageTk.PhotoImage(
-                        img.crop(ctr_box).resize(PREV, Image.LANCZOS)
-                    )
-
-                for photo, label_text in [
-                    (ai_prev, "Recadrage IA"),
-                    (ctr_prev, "Recadrage centré"),
-                ]:
-                    col = ttk.Frame(preview_frame)
-                    col.pack(side=tk.LEFT, expand=True)
-                    ttk.Label(col, text=label_text, font=("Helvetica", 11, "bold")).pack()
-                    lbl = ttk.Label(col, image=photo)
-                    lbl.image = photo  # keep reference
+                for pil_img, label_txt in [(ai_pil, "Recadrage IA"), (ctr_pil, "Recadrage centré")]:
+                    col = ctk.CTkFrame(prev_frame, fg_color="transparent")
+                    col.pack(side="left", expand=True, padx=12)
+                    ctk.CTkLabel(col, text=label_txt,
+                                 font=ctk.CTkFont(size=12, weight="bold")).pack(pady=(0, 4))
+                    photo = ctk.CTkImage(light_image=pil_img, dark_image=pil_img, size=PREV)
+                    lbl = ctk.CTkLabel(col, image=photo, text="", corner_radius=8)
+                    lbl.image = photo
                     lbl.pack()
-
             except Exception as exc:
-                ttk.Label(preview_frame, text=f"Aperçu indisponible : {exc}").pack()
+                ctk.CTkLabel(prev_frame, text=f"Aperçu indisponible : {exc}").pack()
 
             # buttons
-            btns = ttk.Frame(pad)
-            btns.pack(pady=8)
+            btn_frame = ctk.CTkFrame(dlg, fg_color="transparent")
+            btn_frame.pack(pady=14)
 
             def choose(c):
                 result["choice"] = c
                 event.set()
                 dlg.destroy()
 
-            ttk.Button(btns, text="Utiliser le recadrage IA", command=lambda: choose("ai")).pack(
-                side=tk.LEFT, padx=5
-            )
-            ttk.Button(
-                btns, text="Recadrage centré", command=lambda: choose("center")
-            ).pack(side=tk.LEFT, padx=5)
-            ttk.Button(btns, text="Ignorer cette image", command=lambda: choose("skip")).pack(
-                side=tk.LEFT, padx=5
-            )
-            ttk.Button(
-                btns,
-                text="IA pour toutes les suivantes",
-                command=lambda: choose("ai_all"),
-            ).pack(side=tk.LEFT, padx=5)
+            ctk.CTkButton(btn_frame, text="✓ Recadrage IA", width=160,
+                          command=lambda: choose("ai")).grid(row=0, column=0, padx=6)
+            ctk.CTkButton(btn_frame, text="⊞ Centré", width=130,
+                          fg_color=("gray65", "gray35"),
+                          command=lambda: choose("center")).grid(row=0, column=1, padx=6)
+            ctk.CTkButton(btn_frame, text="↷ Ignorer", width=110,
+                          fg_color=("gray65", "gray35"),
+                          command=lambda: choose("skip")).grid(row=0, column=2, padx=6)
+            ctk.CTkButton(btn_frame, text="IA pour toutes →", width=160,
+                          fg_color=("#16a34a", "#15803d"),
+                          command=lambda: choose("ai_all")).grid(row=0, column=3, padx=6)
 
             def _on_close():
                 result["choice"] = "skip"
                 event.set()
                 dlg.destroy()
-
             dlg.protocol("WM_DELETE_WINDOW", _on_close)
 
-        self.root.after(0, _show)
+        self.after(0, _show)
         event.wait()
         return result["choice"]
 
 
-# ─────────────────────────────────────────────────────────── helpers ──
+# ════════════════════════════════════════════════════════════════════════════
+#  Pure image helpers
+# ════════════════════════════════════════════════════════════════════════════
 
 def _to_rgb(img: Image.Image) -> Image.Image:
-    if img.mode not in ("RGB",):
-        return img.convert("RGB")
-    return img.copy()
+    return img.convert("RGB") if img.mode != "RGB" else img.copy()
 
 
-def _ai_crop_box(
-    analysis: dict, iw: int, ih: int, tw: int, th: int
-) -> tuple[int, int, int, int]:
-    """Convert fractional optimal_crop to pixel box, enforcing exact aspect ratio."""
+def _ai_crop_box(analysis, iw, ih, tw, th):
     crop = analysis.get("optimal_crop", {"x1": 0, "y1": 0, "x2": 1, "y2": 1})
-    target_ratio = tw / th
-
-    x1 = int(crop["x1"] * iw)
-    y1 = int(crop["y1"] * ih)
-    x2 = int(crop["x2"] * iw)
-    y2 = int(crop["y2"] * ih)
-
-    x1, y1, x2, y2 = max(0, x1), max(0, y1), min(iw, x2), min(ih, y2)
+    ratio = tw / th
+    x1 = max(0, int(crop["x1"] * iw))
+    y1 = max(0, int(crop["y1"] * ih))
+    x2 = min(iw, int(crop["x2"] * iw))
+    y2 = min(ih, int(crop["y2"] * ih))
 
     cw, ch = x2 - x1, y2 - y1
     if cw <= 0 or ch <= 0:
-        return _center_crop_box(iw, ih, target_ratio)
+        return _center_crop_box(iw, ih, ratio)
 
     cx, cy = (x1 + x2) / 2, (y1 + y2) / 2
-    current_ratio = cw / ch
-
-    if current_ratio > target_ratio:
-        new_w, new_h = cw, cw / target_ratio
+    if cw / ch > ratio:
+        nw, nh = cw, cw / ratio
     else:
-        new_w, new_h = ch * target_ratio, ch
+        nw, nh = ch * ratio, ch
 
-    x1 = int(cx - new_w / 2)
-    y1 = int(cy - new_h / 2)
-    x2 = int(cx + new_w / 2)
-    y2 = int(cy + new_h / 2)
+    x1, y1 = int(cx - nw / 2), int(cy - nh / 2)
+    x2, y2 = int(cx + nw / 2), int(cy + nh / 2)
 
-    # Clamp while preserving size
-    if x1 < 0:
-        x2 -= x1
-        x1 = 0
-    if y1 < 0:
-        y2 -= y1
-        y1 = 0
-    if x2 > iw:
-        x1 -= x2 - iw
-        x2 = iw
-    if y2 > ih:
-        y1 -= y2 - ih
-        y2 = ih
+    if x1 < 0:  x2 -= x1;  x1 = 0
+    if y1 < 0:  y2 -= y1;  y1 = 0
+    if x2 > iw: x1 -= x2 - iw; x2 = iw
+    if y2 > ih: y1 -= y2 - ih; y2 = ih
 
     return (max(0, x1), max(0, y1), min(iw, x2), min(ih, y2))
 
 
-def _center_crop_box(iw: int, ih: int, target_ratio: float) -> tuple[int, int, int, int]:
-    img_ratio = iw / ih
-    if img_ratio > target_ratio:
-        new_w = int(ih * target_ratio)
-        new_h = ih
+def _center_crop_box(iw, ih, ratio):
+    if iw / ih > ratio:
+        nw, nh = int(ih * ratio), ih
     else:
-        new_w = iw
-        new_h = int(iw / target_ratio)
-    x1 = (iw - new_w) // 2
-    y1 = (ih - new_h) // 2
-    return (x1, y1, x1 + new_w, y1 + new_h)
+        nw, nh = iw, int(iw / ratio)
+    return ((iw - nw) // 2, (ih - nh) // 2,
+            (iw - nw) // 2 + nw, (ih - nh) // 2 + nh)
 
 
-# ─────────────────────────────────────────────────────────── entry ───
-
-def main():
-    root = tk.Tk()
-    app = SmartCropApp(root)  # noqa: F841
-
-    # Centre window
-    root.update_idletasks()
-    sw, sh = root.winfo_screenwidth(), root.winfo_screenheight()
-    w, h = root.winfo_width(), root.winfo_height()
-    root.geometry(f"+{(sw - w) // 2}+{(sh - h) // 2}")
-
-    root.mainloop()
-
-
+# ════════════════════════════════════════════════════════════════════════════
+#  Entry point
+# ════════════════════════════════════════════════════════════════════════════
 if __name__ == "__main__":
-    main()
+    app = SmartCropApp()
+    # centre on screen
+    app.update_idletasks()
+    sw, sh = app.winfo_screenwidth(), app.winfo_screenheight()
+    w, h   = app.winfo_width(), app.winfo_height()
+    app.geometry(f"+{(sw - w) // 2}+{(sh - h) // 2}")
+    app.mainloop()
