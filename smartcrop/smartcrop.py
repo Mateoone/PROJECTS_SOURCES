@@ -42,11 +42,12 @@ class SmartCropApp(ctk.CTk):
         self._client: anthropic.Anthropic | None = None
 
         # ── tkinter vars ──────────────────────────────────────────────────
-        self.v_src = ctk.StringVar()
-        self.v_dst = ctk.StringVar()
-        self.v_w   = ctk.StringVar(value="1200")
-        self.v_h   = ctk.StringVar(value="800")
-        self.v_conf = ctk.DoubleVar(value=0.70)
+        self.v_src   = ctk.StringVar()
+        self.v_dst   = ctk.StringVar()
+        self.v_w     = ctk.StringVar(value="1200")
+        self.v_h     = ctk.StringVar(value="800")
+        self.v_conf  = ctk.DoubleVar(value=0.70)
+        self.v_model = ctk.StringVar(value="claude-haiku-4-5")
 
         self._build_layout()
         self._init_client()
@@ -124,7 +125,7 @@ class SmartCropApp(ctk.CTk):
         pad = {"padx": 18, "pady": 6}
 
         # ── section: dossiers ─────────────────────────────────────────
-        self._section_label(sb, "DOSSIERS").grid(row=0, column=0, **pad, sticky="w", pady=(18, 2))
+        self._section_label(sb, "DOSSIERS").grid(row=0, column=0, padx=18, sticky="w", pady=(18, 2))
 
         ctk.CTkLabel(sb, text="Source", anchor="w",
                      font=ctk.CTkFont(size=12)).grid(row=1, column=0, padx=18, sticky="w")
@@ -149,7 +150,7 @@ class SmartCropApp(ctk.CTk):
         self._sep(sb).grid(row=5, column=0, padx=18, pady=10, sticky="ew")
 
         # ── section: taille cible ─────────────────────────────────────
-        self._section_label(sb, "TAILLE CIBLE").grid(row=6, column=0, **pad, sticky="w", pady=(0, 2))
+        self._section_label(sb, "TAILLE CIBLE").grid(row=6, column=0, padx=18, sticky="w", pady=(0, 2))
 
         size_frame = ctk.CTkFrame(sb, fg_color="transparent")
         size_frame.grid(row=7, column=0, padx=14, pady=(0, 4), sticky="ew")
@@ -173,7 +174,7 @@ class SmartCropApp(ctk.CTk):
         self._sep(sb).grid(row=9, column=0, padx=18, pady=10, sticky="ew")
 
         # ── section: confiance ────────────────────────────────────────
-        self._section_label(sb, "SEUIL DE CONFIANCE").grid(row=10, column=0, **pad, sticky="w", pady=(0, 2))
+        self._section_label(sb, "SEUIL DE CONFIANCE").grid(row=10, column=0, padx=18, sticky="w", pady=(0, 2))
 
         self._conf_lbl = ctk.CTkLabel(sb, text="70 %", font=ctk.CTkFont(size=13, weight="bold"))
         self._conf_lbl.grid(row=11, column=0, padx=18, sticky="w")
@@ -189,27 +190,43 @@ class SmartCropApp(ctk.CTk):
 
         self._sep(sb).grid(row=14, column=0, padx=18, pady=10, sticky="ew")
 
+        # ── section: modèle ───────────────────────────────────────────
+        self._section_label(sb, "MODÈLE IA").grid(row=15, column=0, padx=18, sticky="w", pady=(0, 4))
+
+        MODELS = {
+            "claude-haiku-4-5":  "⚡ Haiku  (rapide)",
+            "claude-sonnet-4-6": "⚖ Sonnet (équilibré)",
+            "claude-opus-4-6":   "🎯 Opus  (précis)",
+        }
+        for i, (model_id, label) in enumerate(MODELS.items()):
+            ctk.CTkRadioButton(
+                sb, text=label, variable=self.v_model, value=model_id,
+                font=ctk.CTkFont(size=12),
+            ).grid(row=16 + i, column=0, padx=22, pady=2, sticky="w")
+
+        self._sep(sb).grid(row=19, column=0, padx=18, pady=10, sticky="ew")
+
         # ── section: actions ──────────────────────────────────────────
         self._start_btn = ctk.CTkButton(
             sb, text="▶  Démarrer", height=40,
             font=ctk.CTkFont(size=14, weight="bold"),
             command=self._start,
         )
-        self._start_btn.grid(row=15, column=0, padx=14, pady=(0, 6), sticky="ew")
+        self._start_btn.grid(row=20, column=0, padx=14, pady=(0, 6), sticky="ew")
 
         self._stop_btn = ctk.CTkButton(
             sb, text="■  Arrêter", height=36,
             fg_color=("gray70", "gray35"), hover_color=("gray60", "gray45"),
             state="disabled", command=self._stop,
         )
-        self._stop_btn.grid(row=16, column=0, padx=14, pady=(0, 6), sticky="ew")
+        self._stop_btn.grid(row=21, column=0, padx=14, pady=(0, 6), sticky="ew")
 
         self._open_btn = ctk.CTkButton(
             sb, text="📁  Ouvrir le dossier de sortie", height=32,
             fg_color="transparent", border_width=1,
             command=self._open_output,
         )
-        self._open_btn.grid(row=17, column=0, padx=14, pady=(0, 4), sticky="ew")
+        self._open_btn.grid(row=22, column=0, padx=14, pady=(0, 4), sticky="ew")
 
     # ── results panel ────────────────────────────────────────────────────
 
@@ -497,38 +514,51 @@ class SmartCropApp(ctk.CTk):
     def _process_one(self, path: Path, dst: str, tw: int, th: int):
         with Image.open(path) as img:
             img = _to_rgb(img)
-            iw, ih = img.size
 
-        analysis = self._analyze(path, tw, th, iw, ih)
-        conf  = float(analysis.get("confidence", 1.0))
-        desc  = analysis.get("subject_description", "–")
-        notes = analysis.get("notes", "")
+        # ── Remove black bars first ────────────────────────────────────
+        img, bars_removed = _remove_black_bars(img)
+        if bars_removed:
+            self._log_t("  ✂ Barres noires supprimées", "info")
+        iw, ih = img.size
 
-        self._log_t(f"  Sujet : {desc}  ({conf:.0%})")
-        if notes:
-            self._log_t(f"  Note : {notes}", "warn")
+        # ── AI analysis (with fallback to centre crop on any failure) ──
+        analysis = None
+        try:
+            analysis = self._analyze(path, tw, th, iw, ih)
+        except Exception as exc:
+            self._log_t(f"  ⚠ Analyse IA échouée, recadrage centré : {exc}", "warn")
 
-        threshold = self.v_conf.get()
-        use_ai = True
+        use_ai = analysis is not None
+        if use_ai:
+            conf  = float(analysis.get("confidence", 1.0))
+            desc  = analysis.get("subject_description", "–")
+            notes = analysis.get("notes", "")
+            self._log_t(f"  Sujet : {desc}  ({conf:.0%})")
+            if notes:
+                self._log_t(f"  Note : {notes}", "warn")
 
-        if conf < threshold and not self._auto_ai:
-            choice = self._ask_user(path, analysis, iw, ih, tw, th)
-            if choice == "skip":
-                box = _center_crop_box(iw, ih, tw / th)   # still return a box for thumbnail
-                return box, "warn"
-            elif choice == "center":
-                use_ai = False
-            elif choice == "ai_all":
-                self._auto_ai = True
+            threshold = self.v_conf.get()
+            if conf < threshold and not self._auto_ai:
+                choice = self._ask_user(path, analysis, iw, ih, tw, th)
+                if choice == "skip":
+                    box = _center_crop_box(iw, ih, tw / th)
+                    return box, "warn"
+                elif choice == "center":
+                    use_ai = False
+                elif choice == "ai_all":
+                    self._auto_ai = True
 
         box = _ai_crop_box(analysis, iw, ih, tw, th) if use_ai \
               else _center_crop_box(iw, ih, tw / th)
 
-        with Image.open(path) as img:
-            img = _to_rgb(img)
-            out = img.crop(box).resize((tw, th), Image.LANCZOS)
-            out.save(Path(dst) / (path.stem + "_smartcrop.jpg"),
-                     "JPEG", quality=OUTPUT_QUALITY, optimize=True)
+        # Sanity check — box must be strictly inside image
+        x1, y1, x2, y2 = box
+        assert 0 <= x1 < x2 <= iw and 0 <= y1 < y2 <= ih, \
+            f"Box hors image : {box} pour {iw}×{ih}"
+
+        out = img.crop(box).resize((tw, th), Image.LANCZOS)
+        out.save(Path(dst) / (path.stem + "_smartcrop.jpg"),
+                 "JPEG", quality=OUTPUT_QUALITY, optimize=True)
 
         return box, "ok"
 
@@ -565,10 +595,13 @@ Rules:
 - Set confidence < 0.70 when the crop choice is not obvious
 - Return ONLY the JSON, no markdown."""
 
-        response = self._client.messages.create(
-            model="claude-opus-4-6",
+        model = self.v_model.get()
+        # adaptive thinking only on Opus/Sonnet 4.6 — Haiku doesn't support it
+        thinking = {"type": "adaptive"} if model != "claude-haiku-4-5" else None
+
+        create_kwargs = dict(
+            model=model,
             max_tokens=1024,
-            thinking={"type": "adaptive"},
             messages=[{
                 "role": "user",
                 "content": [
@@ -579,11 +612,39 @@ Rules:
                 ],
             }],
         )
-        text = next(b.text for b in response.content if b.type == "text").strip()
-        if text.startswith("```"):
-            parts = text.split("```")
-            text = parts[1].lstrip("json").strip() if len(parts) > 1 else text
-        return json.loads(text)
+        if thinking:
+            create_kwargs["thinking"] = thinking
+
+        response = self._client.messages.create(**create_kwargs)
+        text = next((b.text for b in response.content if b.type == "text"), "").strip()
+
+        # Strip markdown fences if present
+        if "```" in text:
+            import re
+            m = re.search(r"```(?:json)?\s*([\s\S]+?)```", text)
+            text = m.group(1).strip() if m else text
+
+        # Extract first {...} block in case Claude added surrounding text
+        import re as _re
+        m = _re.search(r"\{[\s\S]+\}", text)
+        if not m:
+            raise ValueError(f"Aucun JSON trouvé dans la réponse : {text[:200]}")
+        data = json.loads(m.group(0))
+
+        # Validate & clamp fractional coordinates to [0, 1]
+        for key in ("subject_box", "optimal_crop"):
+            box = data.get(key, {})
+            for k in ("x1", "y1", "x2", "y2"):
+                box[k] = max(0.0, min(1.0, float(box.get(k, 0.5))))
+            # Ensure x1 < x2 and y1 < y2
+            if box["x1"] >= box["x2"]:
+                box["x1"], box["x2"] = 0.1, 0.9
+            if box["y1"] >= box["y2"]:
+                box["y1"], box["y2"] = 0.1, 0.9
+            data[key] = box
+
+        data["confidence"] = max(0.0, min(1.0, float(data.get("confidence", 0.5))))
+        return data
 
     # ──────────────────────────────────────────────────────── alert ───────
 
@@ -680,33 +741,87 @@ def _to_rgb(img: Image.Image) -> Image.Image:
     return img.convert("RGB") if img.mode != "RGB" else img.copy()
 
 
+def _remove_black_bars(img: Image.Image, threshold: int = 18, min_strip: float = 0.01) -> tuple:
+    """
+    Detect and remove black bars (letterbox / pillarbox) from the image edges.
+    Returns (cropped_img, was_cropped: bool).
+
+    threshold   : pixels with all RGB channels ≤ this value are considered black
+    min_strip   : minimum fraction of the image dimension to qualify as a bar
+    """
+    import numpy as np
+
+    arr = np.array(img)          # H × W × 3
+    h, w = arr.shape[:2]
+
+    # A row/column is "black" if its mean max-channel value is ≤ threshold
+    row_max  = arr.max(axis=(1, 2))   # shape (H,)
+    col_max  = arr.max(axis=(0, 2))   # shape (W,)
+
+    min_row_strip = max(1, int(h * min_strip))
+    min_col_strip = max(1, int(w * min_strip))
+
+    def first_nonblack(values, minimum_strip):
+        for i, v in enumerate(values):
+            if v > threshold:
+                return i if i >= minimum_strip else 0
+        return 0
+
+    def last_nonblack(values, minimum_strip):
+        n = len(values)
+        for i, v in enumerate(reversed(values)):
+            if v > threshold:
+                idx = n - 1 - i
+                return idx if (n - 1 - idx) >= minimum_strip else n - 1
+        return n - 1
+
+    top    = first_nonblack(row_max, min_row_strip)
+    bottom = last_nonblack(row_max, min_row_strip)
+    left   = first_nonblack(col_max, min_col_strip)
+    right  = last_nonblack(col_max, min_col_strip)
+
+    if top == 0 and left == 0 and bottom == h - 1 and right == w - 1:
+        return img, False   # nothing to crop
+
+    cropped = img.crop((left, top, right + 1, bottom + 1))
+    return cropped, True
+
+
 def _ai_crop_box(analysis, iw, ih, tw, th):
+    """
+    Compute a crop box centred on the AI-detected subject.
+    The box is always entirely within the image (no letterbox possible).
+    Strategy: take the largest rectangle at target ratio that fits inside
+    the image, then slide it to be as centred on the subject as possible.
+    """
     crop = analysis.get("optimal_crop", {"x1": 0, "y1": 0, "x2": 1, "y2": 1})
-    ratio = tw / th
-    x1 = max(0, int(crop["x1"] * iw))
-    y1 = max(0, int(crop["y1"] * ih))
-    x2 = min(iw, int(crop["x2"] * iw))
-    y2 = min(ih, int(crop["y2"] * ih))
+    ratio = tw / th  # target width / height
 
-    cw, ch = x2 - x1, y2 - y1
-    if cw <= 0 or ch <= 0:
-        return _center_crop_box(iw, ih, ratio)
+    # Subject centre in pixels
+    cx = ((crop["x1"] + crop["x2"]) / 2) * iw
+    cy = ((crop["y1"] + crop["y2"]) / 2) * ih
 
-    cx, cy = (x1 + x2) / 2, (y1 + y2) / 2
-    if cw / ch > ratio:
-        nw, nh = cw, cw / ratio
+    # Largest crop that fits in the image at target ratio
+    if iw / ih > ratio:
+        # image wider than target → height is the limiting dimension
+        nh = ih
+        nw = ih * ratio
     else:
-        nw, nh = ch * ratio, ch
+        # image taller than target → width is the limiting dimension
+        nw = iw
+        nh = iw / ratio
 
-    x1, y1 = int(cx - nw / 2), int(cy - nh / 2)
-    x2, y2 = int(cx + nw / 2), int(cy + nh / 2)
+    nw, nh = int(nw), int(nh)
 
-    if x1 < 0:  x2 -= x1;  x1 = 0
-    if y1 < 0:  y2 -= y1;  y1 = 0
-    if x2 > iw: x1 -= x2 - iw; x2 = iw
-    if y2 > ih: y1 -= y2 - ih; y2 = ih
+    # Centre crop on subject, then clamp (shift only — never resize)
+    x1 = int(cx - nw / 2)
+    y1 = int(cy - nh / 2)
 
-    return (max(0, x1), max(0, y1), min(iw, x2), min(ih, y2))
+    # Shift so the box stays inside the image
+    x1 = max(0, min(x1, iw - nw))
+    y1 = max(0, min(y1, ih - nh))
+
+    return (x1, y1, x1 + nw, y1 + nh)
 
 
 def _center_crop_box(iw, ih, ratio):
