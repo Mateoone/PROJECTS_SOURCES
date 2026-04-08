@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+from __future__ import annotations
 """
 SmartCrop – Recadrage intelligent par IA  (macOS)
 UI : CustomTkinter  |  IA : Claude claude-opus-4-6 (Anthropic)

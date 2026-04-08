@@ -2,6 +2,13 @@ import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import type { Session, TeamMember, Position, POI } from '@/types/database'
 
+export interface GoogleUser {
+  id: string
+  email: string | null
+  name: string | null
+  avatarUrl: string | null
+}
+
 interface MemberWithPosition extends TeamMember {
   position?: Position
 }
@@ -39,6 +46,10 @@ interface SessionState {
   // Tile precache progress
   tileCacheProgress: number | null
   setTileCacheProgress: (p: number | null) => void
+
+  // Google OAuth user
+  googleUser: GoogleUser | null
+  setGoogleUser: (user: GoogleUser | null) => void
 }
 
 export const useSessionStore = create<SessionState>()(
@@ -85,6 +96,9 @@ export const useSessionStore = create<SessionState>()(
 
       tileCacheProgress: null,
       setTileCacheProgress: (p) => set({ tileCacheProgress: p }),
+
+      googleUser: null,
+      setGoogleUser: (user) => set({ googleUser: user }),
     }),
     {
       name: 'ski-tracker-session',

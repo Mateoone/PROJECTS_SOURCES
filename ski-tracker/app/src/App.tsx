@@ -1,11 +1,12 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
+import { useEffect } from 'react'
 import { useSessionBootstrap } from '@/hooks/useSession'
 import { Home } from '@/pages/Home'
 import { AdminSession } from '@/pages/AdminSession'
 import { JoinSession } from '@/pages/JoinSession'
 import { Session } from '@/pages/Session'
 import { useSessionStore } from '@/stores/sessionStore'
-import { isSupabaseConfigured } from '@/lib/supabase'
+import { isSupabaseConfigured, supabase } from '@/lib/supabase'
 
 function AuthGuard({ children }: { children: React.ReactNode }) {
   const session = useSessionStore((s) => s.session)
@@ -15,6 +16,32 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
 
 function AppRoutes() {
   useSessionBootstrap()
+
+  const setGoogleUser = useSessionStore((s) => s.setGoogleUser)
+
+  useEffect(() => {
+    // Sync Google OAuth user from Supabase auth state
+    const syncUser = (authUser: import('@supabase/supabase-js').User | null) => {
+      if (!authUser || authUser.app_metadata?.provider === 'anonymous') {
+        setGoogleUser(null)
+        return
+      }
+      setGoogleUser({
+        id: authUser.id,
+        email: authUser.email ?? null,
+        name: authUser.user_metadata?.full_name ?? authUser.user_metadata?.name ?? null,
+        avatarUrl: authUser.user_metadata?.avatar_url ?? null,
+      })
+    }
+
+    supabase.auth.getSession().then(({ data: { session } }) => syncUser(session?.user ?? null))
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      syncUser(session?.user ?? null)
+    })
+
+    return () => subscription.unsubscribe()
+  }, [setGoogleUser])
 
   return (
     <Routes>

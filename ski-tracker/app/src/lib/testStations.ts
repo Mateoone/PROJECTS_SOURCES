@@ -44,4 +44,18 @@ export const TEST_STATIONS: SkiStation[] = [
     region: 'Savoie',
     center: [6.6340, 45.4147],
   },
+  {
+    id: '42',
+    name: 'Les Arcs',
+    country: 'France',
+    region: 'Savoie',
+    center: [6.8178, 45.5656],
+  },
+  {
+    id: '35',
+    name: 'La Plagne',
+    country: 'France',
+    region: 'Savoie',
+    center: [6.6752, 45.5108],
+  },
 ]

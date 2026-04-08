@@ -40,3 +40,19 @@ export async function getCurrentUserId(): Promise<string | null> {
   const { data: { session } } = await supabase.auth.getSession()
   return session?.user?.id ?? null
 }
+
+/** Sign in with Google OAuth (redirects back to app) */
+export async function signInWithGoogle(): Promise<void> {
+  const { error } = await supabase.auth.signInWithOAuth({
+    provider: 'google',
+    options: {
+      redirectTo: window.location.origin,
+    },
+  })
+  if (error) throw error
+}
+
+/** Sign out current user */
+export async function signOutUser(): Promise<void> {
+  await supabase.auth.signOut()
+}
