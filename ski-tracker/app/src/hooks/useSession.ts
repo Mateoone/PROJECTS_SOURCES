@@ -6,7 +6,6 @@ import { useSessionStore } from '@/stores/sessionStore'
 export function useSessionBootstrap() {
   const setUserId = useSessionStore((s) => s.setUserId)
   const session = useSessionStore((s) => s.session)
-  const setSession = useSessionStore((s) => s.setSession)
   const setMembers = useSessionStore((s) => s.setMembers)
   const setPOIs = useSessionStore((s) => s.setPOIs)
 

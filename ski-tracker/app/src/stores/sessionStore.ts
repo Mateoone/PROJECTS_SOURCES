@@ -43,7 +43,7 @@ interface SessionState {
 
 export const useSessionStore = create<SessionState>()(
   persist(
-    (set, get) => ({
+    (set) => ({
       userId: null,
       setUserId: (id) => set({ userId: id }),
 

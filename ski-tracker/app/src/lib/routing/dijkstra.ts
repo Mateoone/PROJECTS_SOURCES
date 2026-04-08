@@ -97,7 +97,7 @@ export function findRoute(
   const edgePath: string[] = []
   let cur: string | null = endNode.id
   while (prev.has(cur!) && prev.get(cur!) !== null) {
-    const p = prev.get(cur!)!
+    const p: { nodeId: string; edgeId: string } = prev.get(cur!)!
     edgePath.unshift(p.edgeId)
     cur = p.nodeId
   }

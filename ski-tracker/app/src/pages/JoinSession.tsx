@@ -51,7 +51,7 @@ export function JoinSession() {
       setUserId(userId)
 
       // Verify token via Edge Function
-      const { data: verifyData, error: verifyErr } = await supabase.functions.invoke(
+      const { error: verifyErr } = await supabase.functions.invoke(
         'create-session-token',
         { body: { session_id: sessionId, verify_token: token, user_id: userId } }
       )

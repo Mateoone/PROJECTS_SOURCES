@@ -1,122 +1,198 @@
-// Auto-generated from Supabase schema — do not edit manually
-// Run: npx supabase gen types typescript --local > src/types/database.ts
+// Generated from live Supabase schema — cpbaomccpneahpjxgyae
+// supabase gen types typescript --project-id cpbaomccpneahpjxgyae
 
-export type Json = string | number | boolean | null | { [key: string]: Json | undefined } | Json[]
+export type Json =
+  | string
+  | number
+  | boolean
+  | null
+  | { [key: string]: Json | undefined }
+  | Json[]
 
-export interface Database {
+export type Database = {
+  __InternalSupabase: {
+    PostgrestVersion: "14.5"
+  }
   public: {
     Tables: {
-      sessions: {
+      pois: {
         Row: {
-          id: string
-          admin_id: string
-          station_id: string
-          station_name: string
-          station_center_lat: number
-          station_center_lng: number
+          active: boolean
           created_at: string
-          expires_at: string
-        }
-        Insert: {
-          id?: string
-          admin_id: string
-          station_id: string
-          station_name: string
-          station_center_lat: number
-          station_center_lng: number
-          created_at?: string
-          expires_at: string
-        }
-        Update: Partial<Database['public']['Tables']['sessions']['Insert']>
-      }
-      team_members: {
-        Row: {
+          created_by: string
           id: string
+          label: string
+          lat: number
+          lng: number
           session_id: string
-          user_id: string
-          display_name: string
-          avatar_color: string
-          joined_at: string
+          type: Database["public"]["Enums"]["poi_type"]
         }
         Insert: {
+          active?: boolean
+          created_at?: string
+          created_by: string
           id?: string
+          label: string
+          lat: number
+          lng: number
           session_id: string
-          user_id: string
-          display_name: string
-          avatar_color?: string
-          joined_at?: string
+          type?: Database["public"]["Enums"]["poi_type"]
         }
-        Update: Partial<Database['public']['Tables']['team_members']['Insert']>
+        Update: {
+          active?: boolean
+          created_at?: string
+          created_by?: string
+          id?: string
+          label?: string
+          lat?: number
+          lng?: number
+          session_id?: string
+          type?: Database["public"]["Enums"]["poi_type"]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pois_session_id_fkey"
+            columns: ["session_id"]
+            isOneToOne: false
+            referencedRelation: "sessions"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       positions: {
         Row: {
-          id: string
-          session_id: string
-          user_id: string
-          lat: number
-          lng: number
-          altitude: number | null
-          speed: number | null
-          heading: number | null
           accuracy: number | null
+          altitude: number | null
+          heading: number | null
+          id: string
+          lat: number
+          lng: number
+          session_id: string
+          speed: number | null
           timestamp: string
+          user_id: string
         }
         Insert: {
+          accuracy?: number | null
+          altitude?: number | null
+          heading?: number | null
           id?: string
+          lat: number
+          lng: number
+          session_id: string
+          speed?: number | null
+          timestamp?: string
+          user_id: string
+        }
+        Update: {
+          accuracy?: number | null
+          altitude?: number | null
+          heading?: number | null
+          id?: string
+          lat?: number
+          lng?: number
+          session_id?: string
+          speed?: number | null
+          timestamp?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "positions_session_id_fkey"
+            columns: ["session_id"]
+            isOneToOne: false
+            referencedRelation: "sessions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      sessions: {
+        Row: {
+          admin_id: string
+          created_at: string
+          expires_at: string
+          id: string
+          station_center_lat: number
+          station_center_lng: number
+          station_id: string
+          station_name: string
+        }
+        Insert: {
+          admin_id: string
+          created_at?: string
+          expires_at: string
+          id?: string
+          station_center_lat: number
+          station_center_lng: number
+          station_id: string
+          station_name: string
+        }
+        Update: {
+          admin_id?: string
+          created_at?: string
+          expires_at?: string
+          id?: string
+          station_center_lat?: number
+          station_center_lng?: number
+          station_id?: string
+          station_name?: string
+        }
+        Relationships: []
+      }
+      team_members: {
+        Row: {
+          avatar_color: string
+          display_name: string
+          id: string
+          joined_at: string
           session_id: string
           user_id: string
-          lat: number
-          lng: number
-          altitude?: number | null
-          speed?: number | null
-          heading?: number | null
-          accuracy?: number | null
-          timestamp?: string
-        }
-        Update: Partial<Database['public']['Tables']['positions']['Insert']>
-      }
-      pois: {
-        Row: {
-          id: string
-          session_id: string
-          label: string
-          lat: number
-          lng: number
-          created_by: string
-          type: 'meetpoint' | 'danger' | 'info'
-          created_at: string
-          active: boolean
         }
         Insert: {
+          avatar_color?: string
+          display_name: string
           id?: string
+          joined_at?: string
           session_id: string
-          label: string
-          lat: number
-          lng: number
-          created_by: string
-          type: 'meetpoint' | 'danger' | 'info'
-          created_at?: string
-          active?: boolean
+          user_id: string
         }
-        Update: Partial<Database['public']['Tables']['pois']['Insert']>
+        Update: {
+          avatar_color?: string
+          display_name?: string
+          id?: string
+          joined_at?: string
+          session_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "team_members_session_id_fkey"
+            columns: ["session_id"]
+            isOneToOne: false
+            referencedRelation: "sessions"
+            referencedColumns: ["id"]
+          },
+        ]
       }
     }
-    Views: Record<string, never>
+    Views: {
+      [_ in never]: never
+    }
     Functions: {
-      create_session_token: {
-        Args: { p_session_id: string; p_user_id: string }
-        Returns: string
-      }
+      cleanup_expired_sessions: { Args: Record<PropertyKey, never>; Returns: undefined }
     }
     Enums: {
-      poi_type: 'meetpoint' | 'danger' | 'info'
+      poi_type: "meetpoint" | "danger" | "info"
+    }
+    CompositeTypes: {
+      [_ in never]: never
     }
   }
 }
 
 // Convenience row types
-export type Session = Database['public']['Tables']['sessions']['Row']
-export type TeamMember = Database['public']['Tables']['team_members']['Row']
-export type Position = Database['public']['Tables']['positions']['Row']
-export type POI = Database['public']['Tables']['pois']['Row']
-export type POIType = Database['public']['Enums']['poi_type']
+export type Session    = Database["public"]["Tables"]["sessions"]["Row"]
+export type TeamMember = Database["public"]["Tables"]["team_members"]["Row"]
+export type Position   = Database["public"]["Tables"]["positions"]["Row"]
+export type POI        = Database["public"]["Tables"]["pois"]["Row"]
+export type POIType    = Database["public"]["Enums"]["poi_type"]
