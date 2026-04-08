@@ -25,14 +25,12 @@ export const supabase = createClient<Database>(
   }
 )
 
-/** Sign in anonymously (or return existing anonymous session) */
+/** Return the current authenticated user ID (Google or any provider).
+ *  Throws if not signed in — callers should redirect to home. */
 export async function ensureAnonymousUser(): Promise<string> {
   const { data: { session } } = await supabase.auth.getSession()
   if (session?.user) return session.user.id
-
-  const { data, error } = await supabase.auth.signInAnonymously()
-  if (error) throw error
-  return data.user!.id
+  throw new Error('NOT_AUTHENTICATED')
 }
 
 /** Get or refresh the current user ID */
