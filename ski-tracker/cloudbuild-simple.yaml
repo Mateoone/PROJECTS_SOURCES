@@ -5,8 +5,8 @@ steps:
       - '--tag=$_IMAGE:latest'
       - '--build-arg=VITE_SUPABASE_URL=$_SUPABASE_URL'
       - '--build-arg=VITE_SUPABASE_ANON_KEY=$_SUPABASE_ANON_KEY'
-      - '-f=Dockerfile'
-      - '.'
+      - '-f=ski-tracker/Dockerfile'
+      - 'ski-tracker'
   - name: 'gcr.io/cloud-builders/docker'
     args: [push, '$_IMAGE:latest']
 images: ['$_IMAGE:latest']
