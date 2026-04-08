@@ -1,0 +1,16 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "Ski Tracker (Vite dev)",
+      "runtimeExecutable": "/bin/sh",
+      "runtimeArgs": ["-c", "cd ski-tracker/app && /opt/homebrew/bin/npm run dev"],
+      "port": 5173
+    },
+    {
+      "name": "SmartCrop (Desktop GUI)",
+      "runtimeExecutable": "python3",
+      "runtimeArgs": ["smartcrop/smartcrop.py"]
+    }
+  ]
+}
