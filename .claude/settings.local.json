@@ -11,7 +11,10 @@
       "Bash(brew install:*)",
       "Bash(python3 -c \"import tkinter; print\\(''tkinter OK''\\)\")",
       "Bash(ANTHROPIC_API_KEY=\"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\" .venv/bin/python smartcrop.py)",
-      "Bash(.venv/bin/pip install:*)"
+      "Bash(.venv/bin/pip install:*)",
+      "Bash(/opt/homebrew/bin/python3 -c \"import ast; ast.parse\\(open\\(''smartcrop.py''\\).read\\(\\)\\); print\\(''Syntax OK''\\)\")",
+      "Bash(chmod +x /Users/matthieumilliot/PROJECTS_SOURCES/smartcrop/build_mac.sh /Users/matthieumilliot/PROJECTS_SOURCES/smartcrop/install.sh)",
+      "Bash(chmod +x /Users/matthieumilliot/PROJECTS_SOURCES/smartcrop/build_mac.sh)"
     ]
   }
 }
