@@ -1,0 +1,5 @@
+.gcloudignore
+.git
+app/node_modules/
+app/.env.local
+app/dist/
