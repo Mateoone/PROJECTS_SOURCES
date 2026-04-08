@@ -87,10 +87,15 @@ export function JoinSession() {
       setSession(sessionData, false)
       navigate(`/session/${sessionId}`, { replace: true })
     } catch (e) {
+      console.error('handleJoin error:', e)
       if (e instanceof Error && e.message === 'NOT_AUTHENTICATED') {
         setError('Connecte-toi avec Google avant de rejoindre une session')
       } else {
-        setError(e instanceof Error ? e.message : 'Erreur lors de la connexion')
+        const msg =
+          e instanceof Error ? e.message
+          : (e as { message?: string })?.message
+          ?? JSON.stringify(e)
+        setError(msg || 'Erreur lors de la connexion')
       }
       setStep('enter-name')
     }

@@ -107,7 +107,13 @@ export function AdminSession() {
 
       setStep('show-qr')
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Erreur inconnue')
+      console.error('handleCreate error:', e)
+      const msg =
+        e instanceof Error ? e.message
+        : (e as { message?: string })?.message
+        ?? (e as { error_description?: string })?.error_description
+        ?? JSON.stringify(e)
+      setError(msg || 'Erreur inconnue')
     } finally {
       setLoading(false)
     }
