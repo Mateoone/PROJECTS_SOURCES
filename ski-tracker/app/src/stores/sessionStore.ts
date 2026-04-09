@@ -20,6 +20,8 @@ interface SessionState {
   // Members
   members: MemberWithPosition[]
   setMembers: (members: TeamMember[]) => void
+  addMember: (member: TeamMember) => void
+  updateMemberName: (userId: string, name: string) => void
   updateMemberPosition: (userId: string, position: Position) => void
 
   // POIs
@@ -60,6 +62,18 @@ export const useSessionStore = create<SessionState>()(
             ...m,
             position: s.members.find((em) => em.user_id === m.user_id)?.position,
           })),
+        })),
+      addMember: (member) =>
+        set((s) => ({
+          members: s.members.some((m) => m.id === member.id)
+            ? s.members
+            : [...s.members, member],
+        })),
+      updateMemberName: (userId, name) =>
+        set((s) => ({
+          members: s.members.map((m) =>
+            m.user_id === userId ? { ...m, display_name: name } : m
+          ),
         })),
       updateMemberPosition: (userId, position) =>
         set((s) => ({

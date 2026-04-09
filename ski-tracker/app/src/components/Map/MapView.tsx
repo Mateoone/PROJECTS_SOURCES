@@ -4,34 +4,49 @@ import 'maplibre-gl/dist/maplibre-gl.css'
 import { useSessionStore } from '@/stores/sessionStore'
 import { difficultyColor } from '@/lib/routing/skimap'
 import type { Route } from '@/types/skimap'
+import type { POI } from '@/types/database'
 
 interface MapViewProps {
   onMapClick?: (lat: number, lng: number) => void
+  onPOIClick?: (poi: POI) => void
   route?: Route | null
 }
 
 const SKIMAP_STYLE = {
   version: 8 as const,
   sources: {
-    'osm-tiles': {
+    'osm-base': {
       type: 'raster' as const,
-      tiles: ['https://tile.opentopomap.org/{z}/{x}/{y}.png'],
+      tiles: ['https://tile.openstreetmap.org/{z}/{x}/{y}.png'],
       tileSize: 256,
-      attribution: '© OpenTopoMap (CC-BY-SA)',
-      maxzoom: 17,
+      attribution: '© OpenStreetMap contributors',
+      maxzoom: 19,
+    },
+    'snowmap': {
+      type: 'raster' as const,
+      tiles: ['https://tiles.opensnowmap.org/pistes/{z}/{x}/{y}.png'],
+      tileSize: 256,
+      attribution: '© OpenSnowMap',
+      maxzoom: 18,
     },
   },
   layers: [
     {
-      id: 'osm-tiles',
+      id: 'osm-base',
       type: 'raster' as const,
-      source: 'osm-tiles',
+      source: 'osm-base',
       paint: { 'raster-opacity': 1 },
+    },
+    {
+      id: 'snowmap-overlay',
+      type: 'raster' as const,
+      source: 'snowmap',
+      paint: { 'raster-opacity': 0.9 },
     },
   ],
 }
 
-export function MapView({ onMapClick, route }: MapViewProps) {
+export function MapView({ onMapClick, onPOIClick, route }: MapViewProps) {
   const mapContainer = useRef<HTMLDivElement>(null)
   const map = useRef<maplibregl.Map | null>(null)
   const markersRef = useRef<Map<string, maplibregl.Marker>>(new Map())
@@ -141,12 +156,19 @@ export function MapView({ onMapClick, route }: MapViewProps) {
     for (const poi of pois) {
       if (poiMarkersRef.current.has(poi.id)) continue
       const el = createPOIEl(poi.type, poi.label)
+      if (onPOIClick) {
+        el.addEventListener('click', (e) => {
+          e.stopPropagation()
+          onPOIClick(poi)
+        })
+        el.style.cursor = 'pointer'
+      }
       const marker = new maplibregl.Marker({ element: el, anchor: 'bottom' })
         .setLngLat([poi.lng, poi.lat])
         .addTo(m)
       poiMarkersRef.current.set(poi.id, marker)
     }
-  }, [pois])
+  }, [pois, onPOIClick])
 
   // Draw route
   useEffect(() => {

@@ -25,6 +25,7 @@ export function Session() {
   const tileCacheProgress = useSessionStore((s) => s.tileCacheProgress)
 
   const [poiMenuPos, setPOIMenuPos] = useState<{ lat: number; lng: number } | null>(null)
+  const [selectedPOI, setSelectedPOI] = useState<import('@/types/database').POI | null>(null)
   const [route, setRoute] = useState<Route | null>(null)
   const [skiGraph, setSkiGraph] = useState<SkiGraph | null>(null)
   const [bottomTab, setBottomTab] = useState<'team' | 'route'>('team')
@@ -78,7 +79,7 @@ export function Session() {
   return (
     <div style={{ position: 'relative', width: '100%', height: '100%', overflow: 'hidden', background: '#0f172a' }}>
       {/* Full-screen map */}
-      <MapView onMapClick={handleMapClick} route={route} />
+      <MapView onMapClick={handleMapClick} onPOIClick={setSelectedPOI} route={route} />
 
       {/* Top-left: GPS + status */}
       <GPSIndicator />
@@ -163,6 +164,14 @@ export function Session() {
         </div>
       )}
 
+      {/* POI action sheet */}
+      {selectedPOI && (
+        <POIActionSheet
+          poi={selectedPOI}
+          onClose={() => setSelectedPOI(null)}
+        />
+      )}
+
       {/* Bottom sheet */}
       <BottomSheet>
         {/* Tabs */}
@@ -234,6 +243,151 @@ function InviteQR({ sessionId, stationName }: { sessionId: string; stationName: 
   }
 
   return <QRGenerator token={token} sessionId={sessionId} stationName={stationName} />
+}
+
+const POI_ICONS: Record<string, string> = { meetpoint: '📍', danger: '⚠️', info: 'ℹ️' }
+const POI_COLORS: Record<string, string> = { meetpoint: '#22c55e', danger: '#ef4444', info: '#3b82f6' }
+
+function POIActionSheet({ poi, onClose }: { poi: import('@/types/database').POI; onClose: () => void }) {
+  const isAdmin = useSessionStore((s) => s.isAdmin)
+  const setActivePOI = useSessionStore((s) => s.setActivePOI)
+  const activePOI = useSessionStore((s) => s.activePOI)
+  const removePOI = useSessionStore((s) => s.removePOI)
+  const addPOI = useSessionStore((s) => s.addPOI)
+  const [editing, setEditing] = useState(false)
+  const [label, setLabel] = useState(poi.label)
+  const color = POI_COLORS[poi.type] ?? '#64748b'
+
+  const handleDelete = async () => {
+    removePOI(poi.id)
+    onClose()
+    await supabase.from('pois').update({ active: false }).eq('id', poi.id)
+  }
+
+  const handleSaveLabel = async () => {
+    const trimmed = label.trim()
+    if (trimmed && trimmed !== poi.label) {
+      addPOI({ ...poi, label: trimmed })
+      await supabase.from('pois').update({ label: trimmed }).eq('id', poi.id)
+    }
+    setEditing(false)
+    onClose()
+  }
+
+  const handleActivate = () => {
+    setActivePOI(activePOI?.id === poi.id ? null : poi)
+    onClose()
+  }
+
+  return (
+    <div
+      style={{
+        position: 'absolute', inset: 0, zIndex: 40,
+        background: 'rgba(0,0,0,0.5)',
+        display: 'flex', alignItems: 'flex-end',
+      }}
+      onClick={onClose}
+    >
+      <div
+        style={{
+          width: '100%', background: '#1e293b',
+          border: '1px solid rgba(255,255,255,0.08)',
+          borderRadius: '20px 20px 0 0',
+          padding: '20px 20px 32px',
+          display: 'flex', flexDirection: 'column', gap: 12,
+        }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Header */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4 }}>
+          <span style={{ fontSize: 24 }}>{POI_ICONS[poi.type]}</span>
+          {editing ? (
+            <input
+              autoFocus
+              value={label}
+              onChange={(e) => setLabel(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter') handleSaveLabel(); if (e.key === 'Escape') { setEditing(false); setLabel(poi.label) } }}
+              style={{
+                flex: 1, background: 'rgba(255,255,255,0.08)', border: `1px solid ${color}`,
+                borderRadius: 8, padding: '6px 10px', color: '#f8fafc', fontSize: 16,
+                fontWeight: 700, outline: 'none',
+              }}
+            />
+          ) : (
+            <span style={{ flex: 1, fontSize: 16, fontWeight: 700, color: '#f8fafc' }}>{poi.label}</span>
+          )}
+        </div>
+
+        {/* Navigate */}
+        <button
+          onClick={handleActivate}
+          style={{
+            display: 'flex', alignItems: 'center', gap: 10,
+            background: activePOI?.id === poi.id ? `${color}33` : 'rgba(255,255,255,0.06)',
+            border: `1px solid ${activePOI?.id === poi.id ? color : 'rgba(255,255,255,0.1)'}`,
+            borderRadius: 12, padding: '13px 16px',
+            color: activePOI?.id === poi.id ? color : '#f8fafc',
+            fontSize: 15, fontWeight: 600, cursor: 'pointer',
+          }}
+        >
+          <span>🧭</span>
+          {activePOI?.id === poi.id ? 'Désactiver la navigation' : 'Naviguer vers ce point'}
+        </button>
+
+        {isAdmin && !editing && (
+          <button
+            onClick={() => setEditing(true)}
+            style={{
+              display: 'flex', alignItems: 'center', gap: 10,
+              background: 'rgba(99,102,241,0.1)', border: '1px solid rgba(99,102,241,0.3)',
+              borderRadius: 12, padding: '13px 16px',
+              color: '#818cf8', fontSize: 15, fontWeight: 600, cursor: 'pointer',
+            }}
+          >
+            <span>✏️</span>Renommer
+          </button>
+        )}
+
+        {isAdmin && editing && (
+          <button
+            onClick={handleSaveLabel}
+            style={{
+              background: `${color}22`, border: `1px solid ${color}`,
+              borderRadius: 12, padding: '13px 16px',
+              color, fontSize: 15, fontWeight: 600, cursor: 'pointer',
+            }}
+          >
+            ✓ Enregistrer
+          </button>
+        )}
+
+        {isAdmin && (
+          <button
+            onClick={handleDelete}
+            style={{
+              display: 'flex', alignItems: 'center', gap: 10,
+              background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)',
+              borderRadius: 12, padding: '13px 16px',
+              color: '#ef4444', fontSize: 15, fontWeight: 600, cursor: 'pointer',
+            }}
+          >
+            <span>🗑️</span>Supprimer ce marqueur
+          </button>
+        )}
+
+        <button
+          onClick={onClose}
+          style={{
+            background: 'transparent', border: '1px solid rgba(255,255,255,0.1)',
+            borderRadius: 12, padding: '11px 16px',
+            color: '#64748b', fontSize: 14, cursor: 'pointer',
+          }}
+        >
+          Annuler
+        </button>
+      </div>
+    </div>
+  )
 }
 
 function TabBtn({ active, onClick, children }: { active: boolean; onClick: () => void; children: React.ReactNode }) {
