@@ -13,18 +13,19 @@ interface MapViewProps {
 const SKIMAP_STYLE = {
   version: 8 as const,
   sources: {
-    'skimap-tiles': {
+    'osm-tiles': {
       type: 'raster' as const,
-      tiles: ['https://tiles.skimap.org/v2/{z}/{x}/{y}.png'],
+      tiles: ['https://tile.opentopomap.org/{z}/{x}/{y}.png'],
       tileSize: 256,
-      attribution: '© OpenSkiMap contributors',
+      attribution: '© OpenTopoMap (CC-BY-SA)',
+      maxzoom: 17,
     },
   },
   layers: [
     {
-      id: 'skimap-tiles',
+      id: 'osm-tiles',
       type: 'raster' as const,
-      source: 'skimap-tiles',
+      source: 'osm-tiles',
       paint: { 'raster-opacity': 1 },
     },
   ],

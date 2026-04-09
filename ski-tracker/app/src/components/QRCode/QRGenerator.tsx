@@ -7,9 +7,10 @@ interface QRGeneratorProps {
 }
 
 export function QRGenerator({ token, sessionId, stationName }: QRGeneratorProps) {
-  // Encode minimal data — token is a JWT signed server-side
+  // Encode minimal data as a direct HTTPS join link
   const payload = JSON.stringify({ s: sessionId, t: token })
-  const qrValue = `skitracker://join?${new URLSearchParams({ d: payload }).toString()}`
+  const joinUrl = `${window.location.origin}/join?d=${encodeURIComponent(payload)}`
+  const qrValue = joinUrl
 
   const handleShare = async () => {
     if ('share' in navigator) {
@@ -17,16 +18,14 @@ export function QRGenerator({ token, sessionId, stationName }: QRGeneratorProps)
         await navigator.share({
           title: 'Rejoindre ma session ski',
           text: `Rejoins ma session sur ${stationName}`,
-          url: `${window.location.origin}/join?d=${encodeURIComponent(payload)}`,
+          url: joinUrl,
         })
         return
       } catch {
         // Fall through to clipboard
       }
     }
-    await navigator.clipboard.writeText(
-      `${window.location.origin}/join?d=${encodeURIComponent(payload)}`
-    )
+    await navigator.clipboard.writeText(joinUrl)
     alert('Lien copié dans le presse-papiers !')
   }
 
