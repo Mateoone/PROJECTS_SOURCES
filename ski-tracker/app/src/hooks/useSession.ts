@@ -10,7 +10,7 @@ export function useSessionBootstrap() {
   const setPOIs = useSessionStore((s) => s.setPOIs)
 
   useEffect(() => {
-    ensureAnonymousUser().then(setUserId).catch(console.error)
+    setUserId(ensureAnonymousUser())
   }, [setUserId])
 
   useEffect(() => {

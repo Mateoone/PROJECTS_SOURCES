@@ -10,6 +10,7 @@ import { RouteInfo } from '@/components/BottomSheet/RouteInfo'
 import { CompassOverlay } from '@/components/CompassOverlay'
 import { GPSIndicator } from '@/components/GPSIndicator'
 import { POIMenu } from '@/components/POIMenu'
+import { QRGenerator } from '@/components/QRCode/QRGenerator'
 import { buildSkiGraph } from '@/lib/routing/graph'
 import { parseSkiMapGeoJSON } from '@/lib/routing/skimap'
 import { findRoute } from '@/lib/routing/dijkstra'
@@ -27,6 +28,7 @@ export function Session() {
   const [route, setRoute] = useState<Route | null>(null)
   const [skiGraph, setSkiGraph] = useState<SkiGraph | null>(null)
   const [bottomTab, setBottomTab] = useState<'team' | 'route'>('team')
+  const [showInvite, setShowInvite] = useState(false)
   const graphLoadedRef = useRef(false)
 
   // Start GPS + realtime sync
@@ -136,6 +138,31 @@ export function Session() {
         />
       )}
 
+      {/* Invite overlay */}
+      {showInvite && session && (
+        <div style={{
+          position: 'absolute', inset: 0, zIndex: 50,
+          background: 'rgba(0,0,0,0.8)', backdropFilter: 'blur(4px)',
+          display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+          padding: 24,
+        }}>
+          <div style={{
+            background: '#1e293b', border: '1px solid rgba(255,255,255,0.1)',
+            borderRadius: 20, padding: 24, width: '100%', maxWidth: 360,
+            display: 'flex', flexDirection: 'column', gap: 16,
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <h3 style={{ color: '#f8fafc', fontSize: 17, fontWeight: 700 }}>Inviter des membres</h3>
+              <button
+                onClick={() => setShowInvite(false)}
+                style={{ background: 'none', border: 'none', color: '#64748b', fontSize: 22, cursor: 'pointer', lineHeight: 1 }}
+              >✕</button>
+            </div>
+            <InviteQR sessionId={session.id} stationName={session.station_name} />
+          </div>
+        </div>
+      )}
+
       {/* Bottom sheet */}
       <BottomSheet>
         {/* Tabs */}
@@ -149,7 +176,19 @@ export function Session() {
             </TabBtn>
           )}
           {isAdmin && (
-            <div style={{ marginLeft: 'auto' }}>
+            <div style={{ marginLeft: 'auto', display: 'flex', gap: 6 }}>
+              <button
+                onClick={() => setShowInvite(true)}
+                style={{
+                  background: 'rgba(99,102,241,0.12)',
+                  border: '1px solid rgba(99,102,241,0.3)',
+                  borderRadius: 10, padding: '6px 12px',
+                  color: '#818cf8', fontSize: 12, fontWeight: 600,
+                  cursor: 'pointer', minHeight: 36,
+                }}
+              >
+                + Inviter
+              </button>
               <button
                 onClick={() => {/* Let user tap map */}}
                 style={{
@@ -173,6 +212,28 @@ export function Session() {
       </BottomSheet>
     </div>
   )
+}
+
+import { supabase } from '@/lib/supabase'
+
+function InviteQR({ sessionId, stationName }: { sessionId: string; stationName: string }) {
+  const [token, setToken] = useState<string | null>(null)
+  const userId = useSessionStore((s) => s.userId)
+
+  useEffect(() => {
+    if (!userId) return
+    supabase.functions.invoke('create-session-token', {
+      body: { session_id: sessionId, user_id: userId }
+    }).then(({ data }) => {
+      if (data?.token) setToken(data.token as string)
+    })
+  }, [sessionId, userId])
+
+  if (!token) {
+    return <p style={{ color: '#64748b', textAlign: 'center', fontSize: 14 }}>Chargement…</p>
+  }
+
+  return <QRGenerator token={token} sessionId={sessionId} stationName={stationName} />
 }
 
 function TabBtn({ active, onClick, children }: { active: boolean; onClick: () => void; children: React.ReactNode }) {
