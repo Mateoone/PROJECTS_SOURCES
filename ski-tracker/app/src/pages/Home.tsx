@@ -97,6 +97,9 @@ export function Home() {
       <p style={{ marginTop: 40, color: '#334155', fontSize: 12, textAlign: 'center' }}>
         Fonctionne hors-ligne · GPS temps réel
       </p>
+      <p style={{ marginTop: 8, color: '#1e293b', fontSize: 11, textAlign: 'center' }}>
+        v1.1.0
+      </p>
     </div>
   )
 }

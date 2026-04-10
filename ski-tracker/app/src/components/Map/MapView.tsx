@@ -3,14 +3,14 @@ import maplibregl from 'maplibre-gl'
 import 'maplibre-gl/dist/maplibre-gl.css'
 import { useSessionStore } from '@/stores/sessionStore'
 import { difficultyColor } from '@/lib/routing/skimap'
-import type { Route, SkiRun, SkiLift, RunDifficulty, LiftType } from '@/types/skimap'
+import type { Route, SkiRun, SkiLift, RunDifficulty } from '@/types/skimap'
 import type { POI } from '@/types/database'
 
 export interface SkiFeatureInfo {
   type: 'run' | 'lift'
   name?: string
   difficulty?: RunDifficulty
-  liftType?: LiftType
+  liftType?: string
 }
 
 interface MapViewProps {
@@ -23,12 +23,41 @@ interface MapViewProps {
   route?: Route | null
 }
 
-// OpenSkiMap vector style — terrain with hillshade, ski runs & lifts colored by difficulty
-const OPENSKIMAP_STYLE_URL = 'https://tiles.openskimap.org/styles/terrain_v2.json'
+// Raster style: OSM base + OpenSnowMap ski overlay — works from any domain, no CORS issues
+const RASTER_STYLE = {
+  version: 8 as const,
+  sources: {
+    'osm-base': {
+      type: 'raster' as const,
+      tiles: ['https://tile.openstreetmap.org/{z}/{x}/{y}.png'],
+      tileSize: 256,
+      attribution: '© OpenStreetMap contributors',
+      maxzoom: 19,
+    },
+    'snowmap': {
+      type: 'raster' as const,
+      tiles: ['https://tiles.opensnowmap.org/pistes/{z}/{x}/{y}.png'],
+      tileSize: 256,
+      attribution: '© OpenSnowMap',
+      maxzoom: 18,
+    },
+  },
+  layers: [
+    { id: 'osm-base', type: 'raster' as const, source: 'osm-base', paint: { 'raster-opacity': 1 } },
+    { id: 'snowmap-overlay', type: 'raster' as const, source: 'snowmap', paint: { 'raster-opacity': 0.9 } },
+  ],
+}
 
-const DIFFICULTY_MAP: Record<string, string> = {
+const DIFFICULTY_MAP: Record<string, RunDifficulty> = {
   novice: 'novice', easy: 'easy', intermediate: 'intermediate',
   advanced: 'advanced', expert: 'expert', freeride: 'freeride',
+}
+
+const LIFT_TYPE_FR: Record<string, string> = {
+  chair_lift: 'Télésiège', drag_lift: 'Téléski', gondola: 'Télécabine',
+  cable_car: 'Téléphérique', 't-bar': 'Tire-fesses', 'j-bar': 'Perche',
+  platter: 'Téleski plateau', rope_tow: 'Câble', magic_carpet: 'Tapis roulant',
+  mixed_lift: 'Remontée mixte',
 }
 
 export function MapView({ onMapClick, onPOIClick, onFeatureClick, placementMode = false, runs, lifts, route }: MapViewProps) {
@@ -38,7 +67,6 @@ export function MapView({ onMapClick, onPOIClick, onFeatureClick, placementMode 
   const poiMarkersRef = useRef<Map<string, maplibregl.Marker>>(new Map())
   const myMarkerRef = useRef<maplibregl.Marker | null>(null)
 
-  // Refs to avoid stale closures in map event handlers
   const onMapClickRef = useRef(onMapClick)
   const onFeatureClickRef = useRef(onFeatureClick)
   const placementModeRef = useRef(placementMode)
@@ -47,9 +75,7 @@ export function MapView({ onMapClick, onPOIClick, onFeatureClick, placementMode 
   useEffect(() => { onFeatureClickRef.current = onFeatureClick }, [onFeatureClick])
   useEffect(() => {
     placementModeRef.current = placementMode
-    if (map.current) {
-      map.current.getCanvas().style.cursor = placementMode ? 'crosshair' : ''
-    }
+    if (map.current) map.current.getCanvas().style.cursor = placementMode ? 'crosshair' : ''
   }, [placementMode])
 
   const session = useSessionStore((s) => s.session)
@@ -57,14 +83,13 @@ export function MapView({ onMapClick, onPOIClick, onFeatureClick, placementMode 
   const pois = useSessionStore((s) => s.pois)
   const myPosition = useSessionStore((s) => s.myPosition)
 
-  // Initialize map
+  // ── Initialize map ──────────────────────────────────────────────────────
   useEffect(() => {
-    if (!mapContainer.current || map.current) return
-    if (!session) return
+    if (!mapContainer.current || map.current || !session) return
 
     const m = new maplibregl.Map({
       container: mapContainer.current,
-      style: OPENSKIMAP_STYLE_URL,
+      style: RASTER_STYLE,
       center: [session.station_center_lng, session.station_center_lat],
       zoom: 13,
       attributionControl: false,
@@ -76,53 +101,53 @@ export function MapView({ onMapClick, onPOIClick, onFeatureClick, placementMode 
     m.addControl(new maplibregl.NavigationControl({ showCompass: false }), 'bottom-right')
 
     m.on('click', (e) => {
-      const features = m.queryRenderedFeatures(e.point)
-
-      // OpenSkiMap vector tiles: sourceLayer is 'runs' or 'lifts'
-      const skiFeature = features.find((f) => {
-        const sl = f.sourceLayer ?? ''
-        const lid = f.layer?.id ?? ''
-        return sl === 'runs' || sl === 'lifts' ||
-          lid.includes('run') || lid.includes('lift')
-      })
-
-      if (skiFeature && onFeatureClickRef.current) {
-        const p = skiFeature.properties ?? {}
-        const sl = skiFeature.sourceLayer ?? ''
-        const lid = skiFeature.layer?.id ?? ''
-        const isLift = sl === 'lifts' || lid.includes('lift')
-        if (isLift) {
-          onFeatureClickRef.current({ type: 'lift', name: p['name'] ?? undefined, liftType: p['liftType'] ?? p['type'] ?? undefined })
-        } else {
-          const diff = String(p['difficulty'] ?? p['piste:difficulty'] ?? '').toLowerCase()
-          onFeatureClickRef.current({
-            type: 'run',
-            name: p['name'] ?? undefined,
-            difficulty: (DIFFICULTY_MAP[diff] as SkiFeatureInfo['difficulty']) ?? 'unknown',
-          })
-        }
+      // Placement mode: always place POI, never show feature info
+      if (placementModeRef.current) {
+        onMapClickRef.current?.(e.lngLat.lat, e.lngLat.lng)
         return
       }
 
-      // Overpass GeoJSON fallback layers
+      // Check our loaded Overpass GeoJSON layers for run/lift click
       const geoLayers = ['ski-runs-hit', 'ski-lifts-hit'].filter((id) => m.getLayer(id))
-      if (geoLayers.length > 0 && m.queryRenderedFeatures(e.point, { layers: geoLayers }).length > 0) return
+      if (geoLayers.length > 0) {
+        const features = m.queryRenderedFeatures(e.point, { layers: geoLayers })
+        if (features.length > 0 && onFeatureClickRef.current) {
+          const f = features[0]
+          const p = f.properties ?? {}
+          if (f.layer?.id === 'ski-lifts-hit') {
+            const rawType = p['aerialway'] ?? ''
+            const liftTypeFr = LIFT_TYPE_FR[rawType] ?? 'Remontée mécanique'
+            onFeatureClickRef.current({ type: 'lift', name: p['name'] || undefined, liftType: liftTypeFr })
+          } else {
+            const diff = String(p['piste:difficulty'] ?? '').toLowerCase()
+            onFeatureClickRef.current({
+              type: 'run',
+              name: p['name'] || undefined,
+              difficulty: (DIFFICULTY_MAP[diff] as RunDifficulty) ?? 'unknown',
+            })
+          }
+          return
+        }
+      }
 
       onMapClickRef.current?.(e.lngLat.lat, e.lngLat.lng)
     })
 
-    return () => {
-      m.remove()
-      map.current = null
-    }
+    // Cursor feedback for Overpass layers
+    m.on('mouseenter', 'ski-runs-hit', () => { if (!placementModeRef.current) m.getCanvas().style.cursor = 'pointer' })
+    m.on('mouseleave', 'ski-runs-hit', () => { if (!placementModeRef.current) m.getCanvas().style.cursor = '' })
+    m.on('mouseenter', 'ski-lifts-hit', () => { if (!placementModeRef.current) m.getCanvas().style.cursor = 'pointer' })
+    m.on('mouseleave', 'ski-lifts-hit', () => { if (!placementModeRef.current) m.getCanvas().style.cursor = '' })
+
+    return () => { m.remove(); map.current = null }
   }, [session])
 
-  // Ski vector layers (transparent hitboxes for click detection)
+  // ── Overpass GeoJSON click layers ───────────────────────────────────────
   useEffect(() => {
     const m = map.current
     if (!m || (!runs?.length && !lifts?.length)) return
 
-    const addSkiLayers = () => {
+    const addLayers = () => {
       const geojson = buildSkiGeoJSON(runs ?? [], lifts ?? [])
 
       if (m.getSource('ski-data')) {
@@ -132,56 +157,19 @@ export function MapView({ onMapClick, onPOIClick, onFeatureClick, placementMode 
 
       m.addSource('ski-data', { type: 'geojson', data: geojson })
 
-      // Invisible but wide hit areas
-      m.addLayer({
-        id: 'ski-runs-hit',
-        type: 'line',
-        source: 'ski-data',
-        filter: ['==', ['get', '_type'], 'run'],
-        paint: { 'line-width': 18, 'line-opacity': 0 },
-      })
-      m.addLayer({
-        id: 'ski-lifts-hit',
-        type: 'line',
-        source: 'ski-data',
-        filter: ['==', ['get', '_type'], 'lift'],
-        paint: { 'line-width': 18, 'line-opacity': 0 },
-      })
-
-      m.on('click', 'ski-runs-hit', (e) => {
-        const f = e.features?.[0]
-        if (!f) return
-        onFeatureClickRef.current?.({
-          type: 'run',
-          name: f.properties?.name ?? undefined,
-          difficulty: f.properties?.difficulty ?? undefined,
-        })
-      })
-      m.on('click', 'ski-lifts-hit', (e) => {
-        const f = e.features?.[0]
-        if (!f) return
-        onFeatureClickRef.current?.({
-          type: 'lift',
-          name: f.properties?.name ?? undefined,
-          liftType: f.properties?.liftType ?? undefined,
-        })
-      })
-
-      m.on('mouseenter', 'ski-runs-hit', () => { m.getCanvas().style.cursor = 'pointer' })
-      m.on('mouseleave', 'ski-runs-hit', () => { if (!placementModeRef.current) m.getCanvas().style.cursor = '' })
-      m.on('mouseenter', 'ski-lifts-hit', () => { m.getCanvas().style.cursor = 'pointer' })
-      m.on('mouseleave', 'ski-lifts-hit', () => { if (!placementModeRef.current) m.getCanvas().style.cursor = '' })
+      // Invisible wide hit areas
+      m.addLayer({ id: 'ski-runs-hit', type: 'line', source: 'ski-data', filter: ['==', ['get', '_type'], 'run'],  paint: { 'line-width': 20, 'line-opacity': 0 } })
+      m.addLayer({ id: 'ski-lifts-hit', type: 'line', source: 'ski-data', filter: ['==', ['get', '_type'], 'lift'], paint: { 'line-width': 20, 'line-opacity': 0 } })
     }
 
-    if (m.isStyleLoaded()) addSkiLayers()
-    else m.once('load', addSkiLayers)
+    if (m.isStyleLoaded()) addLayers()
+    else m.once('load', addLayers)
   }, [runs, lifts])
 
-  // Update member markers
+  // ── Member markers ──────────────────────────────────────────────────────
   useEffect(() => {
     const m = map.current
     if (!m) return
-
     const currentIds = new Set(members.map((mb) => mb.user_id))
     for (const [id, marker] of markersRef.current) {
       if (!currentIds.has(id)) { marker.remove(); markersRef.current.delete(id) }
@@ -189,25 +177,22 @@ export function MapView({ onMapClick, onPOIClick, onFeatureClick, placementMode 
     for (const member of members) {
       if (!member.position) continue
       const { lat, lng } = member.position
-      const el = createMemberEl(member.display_name, member.avatar_color)
       if (markersRef.current.has(member.user_id)) {
         markersRef.current.get(member.user_id)!.setLngLat([lng, lat])
       } else {
-        const marker = new maplibregl.Marker({ element: el, anchor: 'center' })
-          .setLngLat([lng, lat]).addTo(m)
+        const el = createMemberEl(member.display_name, member.avatar_color)
+        const marker = new maplibregl.Marker({ element: el, anchor: 'center' }).setLngLat([lng, lat]).addTo(m)
         markersRef.current.set(member.user_id, marker)
       }
     }
   }, [members])
 
-  // Update my position marker
+  // ── My position marker ──────────────────────────────────────────────────
   useEffect(() => {
     const m = map.current
     if (!m || !myPosition) return
     if (!myMarkerRef.current) {
-      const el = createMyEl()
-      myMarkerRef.current = new maplibregl.Marker({ element: el, anchor: 'center' })
-        .setLngLat([myPosition.lng, myPosition.lat]).addTo(m)
+      myMarkerRef.current = new maplibregl.Marker({ element: createMyEl(), anchor: 'center' }).setLngLat([myPosition.lng, myPosition.lat]).addTo(m)
     } else {
       myMarkerRef.current.setLngLat([myPosition.lng, myPosition.lat])
     }
@@ -217,7 +202,7 @@ export function MapView({ onMapClick, onPOIClick, onFeatureClick, placementMode 
     }
   }, [myPosition])
 
-  // Update POI markers
+  // ── POI markers ─────────────────────────────────────────────────────────
   useEffect(() => {
     const m = map.current
     if (!m) return
@@ -232,66 +217,39 @@ export function MapView({ onMapClick, onPOIClick, onFeatureClick, placementMode 
         el.addEventListener('click', (e) => { e.stopPropagation(); onPOIClick(poi) })
         el.style.cursor = 'pointer'
       }
-      const marker = new maplibregl.Marker({ element: el, anchor: 'bottom' })
-        .setLngLat([poi.lng, poi.lat]).addTo(m)
+      const marker = new maplibregl.Marker({ element: el, anchor: 'bottom' }).setLngLat([poi.lng, poi.lat]).addTo(m)
       poiMarkersRef.current.set(poi.id, marker)
     }
   }, [pois, onPOIClick])
 
-  // Draw route
+  // ── Route layers ────────────────────────────────────────────────────────
   useEffect(() => {
     const m = map.current
     if (!m) return
     if (m.getSource('route')) {
-      m.removeLayer('route-runs')
-      m.removeLayer('route-lifts')
+      if (m.getLayer('route-runs')) m.removeLayer('route-runs')
+      if (m.getLayer('route-lifts')) m.removeLayer('route-lifts')
       m.removeSource('route')
     }
     if (!route) return
     m.addSource('route', { type: 'geojson', data: route.geometry })
-    m.addLayer({
-      id: 'route-runs', type: 'line', source: 'route',
-      filter: ['==', ['get', 'type'], 'run'],
-      paint: {
-        'line-width': 4,
-        'line-color': ['match', ['get', 'difficulty'],
-          'novice', difficultyColor('novice'),
-          'easy', difficultyColor('easy'),
-          'intermediate', difficultyColor('intermediate'),
-          'advanced', difficultyColor('advanced'),
-          'expert', difficultyColor('expert'),
-          difficultyColor('unknown'),
-        ],
-        'line-opacity': 0.9,
-      },
-    })
-    m.addLayer({
-      id: 'route-lifts', type: 'line', source: 'route',
-      filter: ['==', ['get', 'type'], 'lift'],
-      paint: { 'line-width': 4, 'line-color': '#f59e0b', 'line-dasharray': [2, 1], 'line-opacity': 0.9 },
-    })
+    m.addLayer({ id: 'route-runs', type: 'line', source: 'route', filter: ['==', ['get', 'type'], 'run'], paint: { 'line-width': 5, 'line-color': ['match', ['get', 'difficulty'], 'novice', difficultyColor('novice'), 'easy', difficultyColor('easy'), 'intermediate', difficultyColor('intermediate'), 'advanced', difficultyColor('advanced'), 'expert', difficultyColor('expert'), difficultyColor('unknown')], 'line-opacity': 0.9 } })
+    m.addLayer({ id: 'route-lifts', type: 'line', source: 'route', filter: ['==', ['get', 'type'], 'lift'], paint: { 'line-width': 5, 'line-color': '#f59e0b', 'line-dasharray': [2, 1], 'line-opacity': 0.9 } })
   }, [route])
 
-  return (
-    <div ref={mapContainer} style={{ position: 'absolute', inset: 0 }} />
-  )
+  return <div ref={mapContainer} style={{ position: 'absolute', inset: 0 }} />
 }
 
-// ─── Helpers ────────────────────────────────────────────────────────────────
+// ── Helpers ──────────────────────────────────────────────────────────────────
 
 function buildSkiGeoJSON(runs: SkiRun[], lifts: SkiLift[]): GeoJSON.FeatureCollection {
   const features: GeoJSON.Feature[] = []
   for (const run of runs) {
-    if (run.geometry.type === 'LineString') {
-      features.push({ type: 'Feature', id: run.id, geometry: run.geometry, properties: { _type: 'run', name: run.name ?? null, difficulty: run.difficulty } })
-    } else {
-      run.geometry.coordinates.forEach((coords, i) => {
-        features.push({ type: 'Feature', id: `${run.id}_${i}`, geometry: { type: 'LineString', coordinates: coords }, properties: { _type: 'run', name: run.name ?? null, difficulty: run.difficulty } })
-      })
-    }
+    const coords = run.geometry.type === 'LineString' ? [run.geometry.coordinates] : run.geometry.coordinates
+    coords.forEach((c, i) => features.push({ type: 'Feature', id: `${run.id}_${i}`, geometry: { type: 'LineString', coordinates: c }, properties: { _type: 'run', name: run.name ?? null, 'piste:difficulty': run.difficulty } }))
   }
   for (const lift of lifts) {
-    features.push({ type: 'Feature', id: lift.id, geometry: lift.geometry, properties: { _type: 'lift', name: lift.name ?? null, liftType: lift.type } })
+    features.push({ type: 'Feature', id: lift.id, geometry: lift.geometry, properties: { _type: 'lift', name: lift.name ?? null, aerialway: lift.type } })
   }
   return { type: 'FeatureCollection', features }
 }

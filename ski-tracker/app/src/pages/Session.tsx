@@ -25,7 +25,11 @@ async function fetchSkiDataFromOverpass(lat: number, lng: number): Promise<GeoJS
   const d = 0.09
   const bbox = `${lat - d},${lng - d},${lat + d},${lng + d}`
   const query = `[out:json][timeout:30];(way["piste:type"](${bbox});way["aerialway"](${bbox}););out geom;`
-  const res = await fetch('https://overpass-api.de/api/interpreter', { method: 'POST', body: query })
+  const res = await fetch('https://overpass-api.de/api/interpreter', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: `data=${encodeURIComponent(query)}`,
+  })
   if (!res.ok) throw new Error('Overpass failed')
   const data = await res.json()
   const features: GeoJSON.Feature[] = (data.elements ?? [])
