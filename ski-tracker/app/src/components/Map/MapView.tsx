@@ -76,28 +76,38 @@ export function MapView({ onMapClick, onPOIClick, onFeatureClick, placementMode 
     m.addControl(new maplibregl.NavigationControl({ showCompass: false }), 'bottom-right')
 
     m.on('click', (e) => {
-      // Query all rendered features at click point — look for piste/aerialway OSM properties
       const features = m.queryRenderedFeatures(e.point)
+
+      // OpenSkiMap vector tiles: sourceLayer is 'runs' or 'lifts'
       const skiFeature = features.find((f) => {
-        const p = f.properties ?? {}
-        return p['piste:type'] || p['aerialway'] || p['piste:difficulty']
+        const sl = f.sourceLayer ?? ''
+        const lid = f.layer?.id ?? ''
+        return sl === 'runs' || sl === 'lifts' ||
+          lid.includes('run') || lid.includes('lift')
       })
+
       if (skiFeature && onFeatureClickRef.current) {
         const p = skiFeature.properties ?? {}
-        if (p['aerialway']) {
-          onFeatureClickRef.current({ type: 'lift', name: p['name'] ?? undefined, liftType: p['aerialway'] })
+        const sl = skiFeature.sourceLayer ?? ''
+        const lid = skiFeature.layer?.id ?? ''
+        const isLift = sl === 'lifts' || lid.includes('lift')
+        if (isLift) {
+          onFeatureClickRef.current({ type: 'lift', name: p['name'] ?? undefined, liftType: p['liftType'] ?? p['type'] ?? undefined })
         } else {
+          const diff = String(p['difficulty'] ?? p['piste:difficulty'] ?? '').toLowerCase()
           onFeatureClickRef.current({
             type: 'run',
             name: p['name'] ?? undefined,
-            difficulty: (DIFFICULTY_MAP[String(p['piste:difficulty'] ?? '').toLowerCase()] as SkiFeatureInfo['difficulty']) ?? 'unknown',
+            difficulty: (DIFFICULTY_MAP[diff] as SkiFeatureInfo['difficulty']) ?? 'unknown',
           })
         }
         return
       }
-      // Also check our loaded GeoJSON layers (Overpass fallback)
+
+      // Overpass GeoJSON fallback layers
       const geoLayers = ['ski-runs-hit', 'ski-lifts-hit'].filter((id) => m.getLayer(id))
       if (geoLayers.length > 0 && m.queryRenderedFeatures(e.point, { layers: geoLayers }).length > 0) return
+
       onMapClickRef.current?.(e.lngLat.lat, e.lngLat.lng)
     })
 
