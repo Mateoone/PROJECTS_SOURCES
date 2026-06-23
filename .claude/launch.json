@@ -1,0 +1,23 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "sketchfab-viewer",
+      "runtimeExecutable": "python3",
+      "runtimeArgs": ["-m", "http.server", "8765", "--directory", "sketchfab-viewer"],
+      "port": 8765
+    },
+    {
+      "name": "panopticon",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["--prefix", "panopticon-geospatial", "run", "dev:client"],
+      "port": 5173
+    },
+    {
+      "name": "satcov-planner",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["--prefix", "satcov-planner", "run", "dev"],
+      "port": 5174
+    }
+  ]
+}

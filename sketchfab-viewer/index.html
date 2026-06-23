@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>HD95-LD Viewer</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: #0d0d0d;
+      color: #e0e0e0;
+      font-family: 'SF Mono', 'Fira Code', monospace;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    header {
+      padding: 12px 20px;
+      background: #111;
+      border-bottom: 1px solid #222;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+
+    header h1 {
+      font-size: 14px;
+      font-weight: 600;
+      letter-spacing: 0.08em;
+      color: #fff;
+      text-transform: uppercase;
+    }
+
+    header a {
+      font-size: 11px;
+      color: #555;
+      text-decoration: none;
+    }
+
+    header a:hover { color: #888; }
+
+    #viewer-container {
+      flex: 1;
+      position: relative;
+    }
+
+    iframe {
+      width: 100%;
+      height: 100%;
+      border: none;
+      display: block;
+    }
+
+    #controls {
+      position: absolute;
+      bottom: 24px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(10, 10, 10, 0.85);
+      backdrop-filter: blur(12px);
+      border: 1px solid #2a2a2a;
+      border-radius: 12px;
+      padding: 16px 24px;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      min-width: 360px;
+    }
+
+    #controls label {
+      font-size: 11px;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: #888;
+      white-space: nowrap;
+    }
+
+    #fov-slider {
+      -webkit-appearance: none;
+      appearance: none;
+      flex: 1;
+      height: 4px;
+      background: #2a2a2a;
+      border-radius: 2px;
+      outline: none;
+      cursor: pointer;
+    }
+
+    #fov-slider::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 16px;
+      height: 16px;
+      border-radius: 50%;
+      background: #fff;
+      cursor: pointer;
+      transition: transform 0.1s;
+    }
+
+    #fov-slider::-webkit-slider-thumb:hover {
+      transform: scale(1.2);
+    }
+
+    #fov-value {
+      font-size: 13px;
+      font-weight: 600;
+      color: #fff;
+      width: 44px;
+      text-align: right;
+    }
+
+    #fov-hint {
+      position: absolute;
+      bottom: 84px;
+      left: 50%;
+      transform: translateX(-50%);
+      font-size: 10px;
+      color: #444;
+      letter-spacing: 0.08em;
+      white-space: nowrap;
+    }
+
+    #status {
+      position: absolute;
+      top: 16px;
+      right: 16px;
+      font-size: 11px;
+      color: #555;
+      letter-spacing: 0.05em;
+      transition: color 0.3s;
+    }
+
+    #status.ready { color: #4caf50; }
+    #status.error { color: #f44336; }
+  </style>
+</head>
+<body>
+
+  <header>
+    <h1>HD95-LD</h1>
+    <a href="https://sketchfab.com/3d-models/hd95-ld-cfa6f2a22254471c96d667d9b672ea7d" target="_blank">
+      ↗ sketchfab.com
+    </a>
+  </header>
+
+  <div id="viewer-container">
+    <iframe
+      id="api-frame"
+      title="HD95-LD"
+      allow="autoplay; fullscreen; xr-spatial-tracking"
+      allowfullscreen
+      src="https://sketchfab.com/models/cfa6f2a22254471c96d667d9b672ea7d/embed?autospin=0&autostart=1&ui_theme=dark&ui_controls=1&ui_infos=0&ui_watermark=0"
+    ></iframe>
+
+    <div id="fov-hint">wide-angle ←————————————————→ télé</div>
+
+    <div id="controls">
+      <label for="fov-slider">FOV</label>
+      <input
+        type="range"
+        id="fov-slider"
+        min="10"
+        max="120"
+        value="45"
+        step="1"
+      />
+      <span id="fov-value">45°</span>
+    </div>
+
+    <div id="status">chargement…</div>
+  </div>
+
+  <script src="https://static.sketchfab.com/api/sketchfab-viewer-1.12.1.js"></script>
+  <script>
+    const iframe  = document.getElementById('api-frame');
+    const slider  = document.getElementById('fov-slider');
+    const display = document.getElementById('fov-value');
+    const status  = document.getElementById('status');
+
+    let api        = null;
+    let currentFOV = 45; // FOV effectivement appliqué
+
+    // helpers vec3
+    const v3sub  = (a, b) => [a[0]-b[0], a[1]-b[1], a[2]-b[2]];
+    const v3add  = (a, b) => [a[0]+b[0], a[1]+b[1], a[2]+b[2]];
+    const v3scl  = (v, s) => [v[0]*s, v[1]*s, v[2]*s];
+    const v3len  = (v)    => Math.sqrt(v[0]**2 + v[1]**2 + v[2]**2);
+    const v3norm = (v)    => { const l = v3len(v); return [v[0]/l, v[1]/l, v[2]/l]; };
+
+    const client = new Sketchfab(iframe);
+
+    client.init('cfa6f2a22254471c96d667d9b672ea7d', {
+      success(sketchfabApi) {
+        api = sketchfabApi;
+        api.start();
+        api.addEventListener('viewerready', () => {
+          status.textContent = 'prêt';
+          status.classList.add('ready');
+        });
+      },
+      error() {
+        status.textContent = 'erreur API';
+        status.classList.add('error');
+      },
+      ui_theme: 'dark',
+      ui_controls: 1,
+      ui_infos: 0,
+      ui_watermark: 0,
+      autostart: 1,
+    });
+
+    /**
+     * Vrai changement de perspective (≠ zoom).
+     *
+     * Principe : on maintient le sujet au même cadrage apparent
+     * en ajustant la distance caméra → cible de façon inversement
+     * proportionnelle à tan(FOV/2). Le rapport profondeur/largeur
+     * change, créant la compression telephoto ou la distorsion wide-angle.
+     *
+     * scale = tan(FOVancien/2) / tan(FOVnouveau/2)
+     * newDist = dist × scale
+     */
+    function applyFov(newFOV) {
+      if (!api) return;
+
+      api.getCameraLookAt((err, camera) => {
+        if (err) { console.warn('getCameraLookAt error:', err); return; }
+
+        const eye    = camera.position;
+        const target = camera.target;
+        const up     = [0, 1, 0];
+
+        const dir   = v3sub(eye, target);
+        const dist  = v3len(dir);
+        const scale = Math.tan((currentFOV / 2) * Math.PI / 180)
+                    / Math.tan((newFOV    / 2) * Math.PI / 180);
+
+        const newEye = v3add(target, v3scl(v3norm(dir), dist * scale));
+
+        currentFOV = newFOV;
+
+        api.setFov(newFOV, () => {});
+        api.setCameraLookAt(newEye, target, up, () => {});
+      });
+    }
+
+    slider.addEventListener('input', () => {
+      const val = parseInt(slider.value, 10);
+      display.textContent = val + '°';
+      applyFov(val);
+    });
+  </script>
+
+</body>
+</html>

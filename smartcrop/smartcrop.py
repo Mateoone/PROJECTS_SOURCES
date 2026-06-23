@@ -42,28 +42,93 @@ class SmartCropApp(ctk.CTk):
         self._client: anthropic.Anthropic | None = None
 
         # ── tkinter vars ──────────────────────────────────────────────────
-        self.v_src   = ctk.StringVar()
-        self.v_dst   = ctk.StringVar()
-        self.v_w     = ctk.StringVar(value="1200")
-        self.v_h     = ctk.StringVar(value="800")
-        self.v_conf  = ctk.DoubleVar(value=0.70)
-        self.v_model = ctk.StringVar(value="claude-haiku-4-5")
+        self.v_src        = ctk.StringVar()
+        self.v_dst        = ctk.StringVar()
+        self.v_w          = ctk.StringVar(value="1200")
+        self.v_h          = ctk.StringVar(value="800")
+        self.v_conf       = ctk.DoubleVar(value=0.70)
+        self.v_model      = ctk.StringVar(value="claude-haiku-4-5")
+        self.v_suffix     = ctk.StringVar(value="_smartcrop")
+        self.v_use_suffix = ctk.BooleanVar(value=True)
 
         self._build_layout()
+        self._load_config()
         self._init_client()
+
+    # ──────────────────────────────────────────────────────── config ─────
+
+    _CONFIG_PATH = Path.home() / ".smartcrop_config.json"
+
+    def _load_config(self):
+        try:
+            data = json.loads(self._CONFIG_PATH.read_text())
+            self.v_src.set(data.get("src", ""))
+            self.v_dst.set(data.get("dst", ""))
+            self.v_w.set(data.get("w", "1200"))
+            self.v_h.set(data.get("h", "800"))
+            self.v_conf.set(float(data.get("conf", 0.70)))
+            self.v_model.set(data.get("model", "claude-haiku-4-5"))
+            self.v_suffix.set(data.get("suffix", "_smartcrop"))
+            self.v_use_suffix.set(bool(data.get("use_suffix", True)))
+            self._saved_api_key = data.get("api_key", "")
+            self._on_conf_change(self.v_conf.get())
+        except Exception:
+            self._saved_api_key = ""
+
+    def _save_config(self, *_):
+        try:
+            data = {
+                "src":        self.v_src.get(),
+                "dst":        self.v_dst.get(),
+                "w":          self.v_w.get(),
+                "h":          self.v_h.get(),
+                "conf":       self.v_conf.get(),
+                "model":      self.v_model.get(),
+                "suffix":     self.v_suffix.get(),
+                "use_suffix": self.v_use_suffix.get(),
+            }
+            # Persist API key only if it was entered via the app dialog
+            if getattr(self, "_saved_api_key", ""):
+                data["api_key"] = self._saved_api_key
+            self._CONFIG_PATH.write_text(json.dumps(data, indent=2))
+        except Exception:
+            pass
 
     # ──────────────────────────────────────────────────────── client ──────
 
     def _init_client(self):
+        # 1. Environment variable (highest priority)
         key = os.environ.get("ANTHROPIC_API_KEY", "")
+        # 2. Key saved via app dialog
+        if not key:
+            key = getattr(self, "_saved_api_key", "")
+        # 3. Ask the user (needed for standalone .app / .exe)
+        if not key:
+            key = self._ask_api_key_dialog()
         if key:
             self._client = anthropic.Anthropic(api_key=key)
         else:
             self._show_error(
-                "ANTHROPIC_API_KEY manquante",
-                "Définissez la variable d'environnement ANTHROPIC_API_KEY\n"
-                "puis relancez l'application.",
+                "Clé API manquante",
+                "Sans clé API, SmartCrop ne peut pas analyser les images.\n"
+                "Obtenez votre clé sur : https://console.anthropic.com/settings/keys",
             )
+
+    def _ask_api_key_dialog(self) -> str:
+        """Show a dialog asking for the Anthropic API key; save it to config on success."""
+        dlg = ctk.CTkInputDialog(
+            title="Clé API Anthropic",
+            text=(
+                "Clé API non trouvée dans l'environnement.\n\n"
+                "Collez votre clé Anthropic (sk-ant-…) :\n"
+                "(elle sera sauvegardée pour les prochains lancements)"
+            ),
+        )
+        key = (dlg.get_input() or "").strip()
+        if key:
+            self._saved_api_key = key
+            self._save_config()
+        return key
 
     # ──────────────────────────────────────────────────────── layout ──────
 
@@ -130,30 +195,48 @@ class SmartCropApp(ctk.CTk):
         ctk.CTkLabel(sb, text="Source", anchor="w",
                      font=ctk.CTkFont(size=12)).grid(row=1, column=0, padx=18, sticky="w")
         src_row = ctk.CTkFrame(sb, fg_color="transparent")
-        src_row.grid(row=2, column=0, padx=14, pady=(0, 4), sticky="ew")
+        src_row.grid(row=2, column=0, padx=14, pady=(0, 0), sticky="ew")
         src_row.grid_columnconfigure(0, weight=1)
         ctk.CTkEntry(src_row, textvariable=self.v_src, placeholder_text="Choisir…",
                      height=32).grid(row=0, column=0, sticky="ew")
         ctk.CTkButton(src_row, text="…", width=32, height=32,
                       command=self._browse_src).grid(row=0, column=1, padx=(4, 0))
+        self._src_path_lbl = ctk.CTkLabel(sb, text="", anchor="w", wraplength=270,
+                                           font=ctk.CTkFont(size=10),
+                                           text_color=("gray45", "gray55"))
+        self._src_path_lbl.grid(row=3, column=0, padx=18, sticky="w", pady=(1, 6))
 
         ctk.CTkLabel(sb, text="Sortie", anchor="w",
-                     font=ctk.CTkFont(size=12)).grid(row=3, column=0, padx=18, sticky="w")
+                     font=ctk.CTkFont(size=12)).grid(row=4, column=0, padx=18, sticky="w")
         dst_row = ctk.CTkFrame(sb, fg_color="transparent")
-        dst_row.grid(row=4, column=0, padx=14, pady=(0, 4), sticky="ew")
+        dst_row.grid(row=5, column=0, padx=14, pady=(0, 0), sticky="ew")
         dst_row.grid_columnconfigure(0, weight=1)
         ctk.CTkEntry(dst_row, textvariable=self.v_dst, placeholder_text="Choisir…",
                      height=32).grid(row=0, column=0, sticky="ew")
         ctk.CTkButton(dst_row, text="…", width=32, height=32,
                       command=self._browse_dst).grid(row=0, column=1, padx=(4, 0))
+        self._dst_path_lbl = ctk.CTkLabel(sb, text="", anchor="w", wraplength=270,
+                                           font=ctk.CTkFont(size=10),
+                                           text_color=("gray45", "gray55"))
+        self._dst_path_lbl.grid(row=6, column=0, padx=18, sticky="w", pady=(1, 6))
 
-        self._sep(sb).grid(row=5, column=0, padx=18, pady=10, sticky="ew")
+        # Traces : update path labels + auto-save on every change
+        self.v_src.trace_add("write", lambda *_: (
+            self._src_path_lbl.configure(text=self.v_src.get()),
+            self._save_config(),
+        ))
+        self.v_dst.trace_add("write", lambda *_: (
+            self._dst_path_lbl.configure(text=self.v_dst.get()),
+            self._save_config(),
+        ))
+
+        self._sep(sb).grid(row=7, column=0, padx=18, pady=10, sticky="ew")
 
         # ── section: taille cible ─────────────────────────────────────
-        self._section_label(sb, "TAILLE CIBLE").grid(row=6, column=0, padx=18, sticky="w", pady=(0, 2))
+        self._section_label(sb, "TAILLE CIBLE").grid(row=8, column=0, padx=18, sticky="w", pady=(0, 2))
 
         size_frame = ctk.CTkFrame(sb, fg_color="transparent")
-        size_frame.grid(row=7, column=0, padx=14, pady=(0, 4), sticky="ew")
+        size_frame.grid(row=9, column=0, padx=14, pady=(0, 4), sticky="ew")
         size_frame.grid_columnconfigure((0, 1, 2, 3), weight=1)
 
         ctk.CTkLabel(size_frame, text="L", font=ctk.CTkFont(size=12)).grid(row=0, column=0, padx=(0, 2))
@@ -167,31 +250,53 @@ class SmartCropApp(ctk.CTk):
         self._ratio_label = ctk.CTkLabel(sb, text="Ratio : 3:2",
                                           font=ctk.CTkFont(size=11),
                                           text_color=("gray50", "gray55"))
-        self._ratio_label.grid(row=8, column=0, padx=18, sticky="w")
-        self.v_w.trace_add("write", self._update_ratio)
-        self.v_h.trace_add("write", self._update_ratio)
+        self._ratio_label.grid(row=10, column=0, padx=18, sticky="w")
+        self.v_w.trace_add("write", lambda *_: (self._update_ratio(), self._save_config()))
+        self.v_h.trace_add("write", lambda *_: (self._update_ratio(), self._save_config()))
 
-        self._sep(sb).grid(row=9, column=0, padx=18, pady=10, sticky="ew")
+        self._sep(sb).grid(row=11, column=0, padx=18, pady=10, sticky="ew")
 
         # ── section: confiance ────────────────────────────────────────
-        self._section_label(sb, "SEUIL DE CONFIANCE").grid(row=10, column=0, padx=18, sticky="w", pady=(0, 2))
+        self._section_label(sb, "SEUIL DE CONFIANCE").grid(row=12, column=0, padx=18, sticky="w", pady=(0, 2))
 
         self._conf_lbl = ctk.CTkLabel(sb, text="70 %", font=ctk.CTkFont(size=13, weight="bold"))
-        self._conf_lbl.grid(row=11, column=0, padx=18, sticky="w")
+        self._conf_lbl.grid(row=13, column=0, padx=18, sticky="w")
 
         self._slider = ctk.CTkSlider(sb, from_=0, to=1, variable=self.v_conf,
                                       command=self._on_conf_change)
-        self._slider.grid(row=12, column=0, padx=14, pady=(2, 2), sticky="ew")
+        self._slider.grid(row=14, column=0, padx=14, pady=(2, 2), sticky="ew")
 
         ctk.CTkLabel(sb, text="En dessous, l'IA vous demande de choisir.",
                      font=ctk.CTkFont(size=11),
                      text_color=("gray50", "gray55"),
-                     wraplength=270).grid(row=13, column=0, padx=18, sticky="w")
+                     wraplength=270).grid(row=15, column=0, padx=18, sticky="w")
 
-        self._sep(sb).grid(row=14, column=0, padx=18, pady=10, sticky="ew")
+        self._sep(sb).grid(row=16, column=0, padx=18, pady=10, sticky="ew")
+
+        # ── section: fichiers de sortie ───────────────────────────────
+        self._section_label(sb, "FICHIERS DE SORTIE").grid(row=17, column=0, padx=18, sticky="w", pady=(0, 4))
+
+        suffix_row = ctk.CTkFrame(sb, fg_color="transparent")
+        suffix_row.grid(row=18, column=0, padx=14, pady=(0, 4), sticky="ew")
+        suffix_row.grid_columnconfigure(1, weight=1)
+        self._suffix_chk = ctk.CTkCheckBox(
+            suffix_row, text="Suffixe :", width=90,
+            variable=self.v_use_suffix,
+            command=self._on_suffix_toggle,
+            font=ctk.CTkFont(size=12),
+        )
+        self._suffix_chk.grid(row=0, column=0, padx=(0, 6))
+        self._suffix_entry = ctk.CTkEntry(
+            suffix_row, textvariable=self.v_suffix, height=30,
+            placeholder_text="_smartcrop",
+        )
+        self._suffix_entry.grid(row=0, column=1, sticky="ew")
+        self.v_suffix.trace_add("write", self._save_config)
+
+        self._sep(sb).grid(row=19, column=0, padx=18, pady=10, sticky="ew")
 
         # ── section: modèle ───────────────────────────────────────────
-        self._section_label(sb, "MODÈLE IA").grid(row=15, column=0, padx=18, sticky="w", pady=(0, 4))
+        self._section_label(sb, "MODÈLE IA").grid(row=20, column=0, padx=18, sticky="w", pady=(0, 4))
 
         MODELS = {
             "claude-haiku-4-5":  "⚡ Haiku  (rapide)",
@@ -202,9 +307,10 @@ class SmartCropApp(ctk.CTk):
             ctk.CTkRadioButton(
                 sb, text=label, variable=self.v_model, value=model_id,
                 font=ctk.CTkFont(size=12),
-            ).grid(row=16 + i, column=0, padx=22, pady=2, sticky="w")
+                command=self._save_config,
+            ).grid(row=21 + i, column=0, padx=22, pady=2, sticky="w")
 
-        self._sep(sb).grid(row=19, column=0, padx=18, pady=10, sticky="ew")
+        self._sep(sb).grid(row=24, column=0, padx=18, pady=10, sticky="ew")
 
         # ── section: actions ──────────────────────────────────────────
         self._start_btn = ctk.CTkButton(
@@ -212,21 +318,21 @@ class SmartCropApp(ctk.CTk):
             font=ctk.CTkFont(size=14, weight="bold"),
             command=self._start,
         )
-        self._start_btn.grid(row=20, column=0, padx=14, pady=(0, 6), sticky="ew")
+        self._start_btn.grid(row=25, column=0, padx=14, pady=(0, 6), sticky="ew")
 
         self._stop_btn = ctk.CTkButton(
             sb, text="■  Arrêter", height=36,
             fg_color=("gray70", "gray35"), hover_color=("gray60", "gray45"),
             state="disabled", command=self._stop,
         )
-        self._stop_btn.grid(row=21, column=0, padx=14, pady=(0, 6), sticky="ew")
+        self._stop_btn.grid(row=26, column=0, padx=14, pady=(0, 6), sticky="ew")
 
         self._open_btn = ctk.CTkButton(
             sb, text="📁  Ouvrir le dossier de sortie", height=32,
             fg_color="transparent", border_width=1,
             command=self._open_output,
         )
-        self._open_btn.grid(row=22, column=0, padx=14, pady=(0, 4), sticky="ew")
+        self._open_btn.grid(row=27, column=0, padx=14, pady=(0, 4), sticky="ew")
 
     # ── results panel ────────────────────────────────────────────────────
 
@@ -340,6 +446,10 @@ class SmartCropApp(ctk.CTk):
         if dst and Path(dst).exists():
             subprocess.Popen(["open", dst])
 
+    def _on_suffix_toggle(self, *_):
+        state = "normal" if self.v_use_suffix.get() else "disabled"
+        self._suffix_entry.configure(state=state)
+
     def _show_error(self, title, msg):
         from tkinter import messagebox
         messagebox.showerror(title, msg)
@@ -378,21 +488,52 @@ class SmartCropApp(ctk.CTk):
     # ──────────────────────────────────────────────────────── thumbnails ──
 
     def _add_thumbnail(self, img_path: Path, crop_box: tuple, status: str):
-        """Add a result thumbnail to the grid (called from main thread)."""
+        """Add a result thumbnail to the grid (called from main thread).
+        Shows the original (bar-removed) image with a dotted crop rectangle overlay."""
         size = (THUMB_W, THUMB_H)
+        color = {"ok": "#16a34a", "warn": "#b45309", "err": "#dc2626"}.get(status, "#888")
         try:
             with Image.open(img_path) as img:
                 img = _to_rgb(img)
-                cropped = img.crop(crop_box).resize(size, Image.LANCZOS)
+            img, _ = _remove_black_bars(img)
+            iw, ih = img.size
+
+            # Fit the original into the thumbnail, preserving aspect ratio
+            scale = min(THUMB_W / iw, THUMB_H / ih)
+            sw, sh = max(1, int(iw * scale)), max(1, int(ih * scale))
+            thumb = img.resize((sw, sh), Image.LANCZOS)
+
+            # Place on neutral background
+            bg = Image.new("RGB", size, (110, 110, 110))
+            off_x = (THUMB_W - sw) // 2
+            off_y = (THUMB_H - sh) // 2
+            bg.paste(thumb, (off_x, off_y))
+
+            # Dim area outside the crop box
+            x1, y1, x2, y2 = crop_box
+            tx1 = int(x1 * scale) + off_x
+            ty1 = int(y1 * scale) + off_y
+            tx2 = int(x2 * scale) + off_x
+            ty2 = int(y2 * scale) + off_y
+            tx1, tx2 = max(off_x, tx1), min(off_x + sw, tx2)
+            ty1, ty2 = max(off_y, ty1), min(off_y + sh, ty2)
+
+            bg_rgba = bg.convert("RGBA")
+            dim = Image.new("RGBA", size, (0, 0, 0, 110))
+            ImageDraw.Draw(dim).rectangle((tx1, ty1, tx2, ty2), fill=(0, 0, 0, 0))
+            bg = Image.alpha_composite(bg_rgba, dim).convert("RGB")
+
+            # Dotted crop rectangle
+            draw = ImageDraw.Draw(bg)
+            _draw_dashed_rect(draw, (tx1, ty1, tx2, ty2), color)
+
+            result = bg
         except Exception:
-            cropped = Image.new("RGB", size, color=(200, 200, 200))
+            result = Image.new("RGB", size, color=(200, 200, 200))
+            draw = ImageDraw.Draw(result)
+            draw.rectangle([2, 2, size[0] - 3, size[1] - 3], outline=color, width=2)
 
-        # overlay coloured border
-        color = {"ok": "#16a34a", "warn": "#b45309", "err": "#dc2626"}.get(status, "#888")
-        draw = ImageDraw.Draw(cropped)
-        draw.rectangle([0, 0, size[0] - 1, size[1] - 1], outline=color, width=3)
-
-        photo = ctk.CTkImage(light_image=cropped, dark_image=cropped, size=size)
+        photo = ctk.CTkImage(light_image=result, dark_image=result, size=size)
 
         cell = ctk.CTkFrame(self._thumb_grid, fg_color="transparent")
         cell.grid(row=self._thumb_row, column=self._thumb_col, padx=4, pady=4)
@@ -557,7 +698,8 @@ class SmartCropApp(ctk.CTk):
             f"Box hors image : {box} pour {iw}×{ih}"
 
         out = img.crop(box).resize((tw, th), Image.LANCZOS)
-        out.save(Path(dst) / (path.stem + "_smartcrop.jpg"),
+        suffix = self.v_suffix.get() if self.v_use_suffix.get() else ""
+        out.save(Path(dst) / (path.stem + suffix + ".jpg"),
                  "JPEG", quality=OUTPUT_QUALITY, optimize=True)
 
         return box, "ok"
@@ -831,6 +973,30 @@ def _center_crop_box(iw, ih, ratio):
         nw, nh = iw, int(iw / ratio)
     return ((iw - nw) // 2, (ih - nh) // 2,
             (iw - nw) // 2 + nw, (ih - nh) // 2 + nh)
+
+
+def _draw_dashed_rect(draw, box, color, dash=5, gap=3, width=2):
+    """Draw a dashed rectangle on a PIL ImageDraw object."""
+    x1, y1, x2, y2 = (int(v) for v in box)
+
+    def dashed_line(ax, ay, bx, by):
+        dx, dy = bx - ax, by - ay
+        length = int((dx * dx + dy * dy) ** 0.5)
+        if length == 0:
+            return
+        step = dash + gap
+        for i in range(0, length, step):
+            t0 = i / length
+            t1 = min((i + dash) / length, 1.0)
+            draw.line(
+                [(ax + dx * t0, ay + dy * t0), (ax + dx * t1, ay + dy * t1)],
+                fill=color, width=width,
+            )
+
+    dashed_line(x1, y1, x2, y1)  # top
+    dashed_line(x2, y1, x2, y2)  # right
+    dashed_line(x2, y2, x1, y2)  # bottom
+    dashed_line(x1, y2, x1, y1)  # left
 
 
 # ════════════════════════════════════════════════════════════════════════════

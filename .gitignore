@@ -1,0 +1,30 @@
+# Dépendances
+**/node_modules/
+
+# Artefacts de build
+**/dist/
+**/build/
+**/.vite/
+**/*.tsbuildinfo
+
+# Variables d'environnement (clés API, secrets)
+**/.env
+**/.env.local
+**/.env.*.local
+
+# macOS
+.DS_Store
+**/.DS_Store
+
+# Claude Code — worktrees temporaires et fichiers locaux (peuvent contenir des clés)
+.claude/worktrees/
+.claude/settings.local.json
+.claire/
+
+# PyInstaller
+smartcrop/**/*.spec
+smartcrop/dist/
+smartcrop/build/
+
+# Logs
+*.log

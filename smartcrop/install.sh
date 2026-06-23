@@ -50,6 +50,7 @@ echo "→  Installation des dépendances…"
     "anthropic>=0.40.0" \
     "Pillow>=10.0.0" \
     "customtkinter>=5.2.0" \
+    "numpy>=1.26.0" \
     --quiet
 
 echo "✓  Dépendances installées"
