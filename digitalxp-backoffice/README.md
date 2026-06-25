@@ -67,13 +67,39 @@ Comportement) et choisit le bon widget :
 
 ---
 
+## Médias — lier la racine du SSD
+
+Vos médias (images, vidéos, scènes 3D) sont stockés sur un SSD et référencés
+dans le JSON par leur nom (`MBDA_EUROSATILA22_3D_04`, `background.jpg`…).
+
+Cliquez sur **« Lier les médias »** (en haut à droite) → **Lier un dossier…**,
+puis sélectionnez le **dossier racine** de vos médias sur le SSD. L'application
+indexe récursivement tous les fichiers et **affiche les aperçus** (vignettes
+cliquables → agrandissement) directement sous chaque champ média de l'éditeur.
+
+- La résolution est **tolérante** : elle retrouve un fichier par son nom complet,
+  son nom sans extension (utile pour les scènes 3D), ou en testant les extensions
+  courantes (`.png`, `.jpg`, `.mp4`, `.mov`…).
+- Le dossier est **lu localement** — aucun fichier n'est envoyé en ligne.
+- Le dossier lié est **mémorisé** entre les sessions (ré-autorisation en un clic).
+- **Alternative** : si vos médias sont servis par une URL, renseignez une
+  _URL de base_ dans la configuration.
+
+> ⚠️ La liaison de dossier nécessite un **contexte sécurisé** (localhost) : lancez
+> le backoffice via **`Lancer-Backoffice.command`**. En mode `file://` (double-clic
+> direct sur `index.html`), cette fonction n'est pas disponible.
+
+---
+
 ## Fonctionnalités
 
 - 🔎 **Recherche** instantanée (label, titre, id) avec dépliage auto
 - ➕ **Ajouter / dupliquer / supprimer** un bloc (au survol d'une ligne)
 - ↕️ **Glisser-déposer** pour réorganiser et déplacer dans la hiérarchie
+- 🖼️ **Aperçus médias** depuis le SSD (images & vidéos) + lightbox
 - 💾 **Sauvegarde directe** dans le fichier (mode serveur local) + **Export**
 - ♻️ **Auto-sauvegarde** locale anti-perte (restauration de brouillon)
+- 🎨 Charte **MBDA** (charbon + rouge)
 - ⌨️ Raccourcis : `⌘/Ctrl + S` sauvegarder · `⌘/Ctrl + F` rechercher
 
 ---
