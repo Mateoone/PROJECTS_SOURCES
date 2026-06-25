@@ -106,21 +106,22 @@ cliquables → agrandissement) directement sous chaque champ média de l'éditeu
 
 ## Déploiement Cloud Run
 
-L'app est déployée sur **Cloud Run** (projet *DIGITAL AI FACTORY*) en **accès privé**
-et **sans JSON embarqué** : on **uploade le fichier en début de session** (bouton
-_Ouvrir_ / glisser-déposer), on édite, puis on _Sauvegarde_ / _Exporte_.
+L'app est déployée sur **Cloud Run** (projet *DIGITAL AI FACTORY*) derrière un
+**login Google (IAP)** réservé au domaine, et **sans JSON embarqué** : on
+**uploade le fichier en début de session** (bouton _Ouvrir_ / glisser-déposer),
+on édite, puis on _Sauvegarde_ / _Exporte_.
 
 ```bash
-./deploy.sh          # build (nginx) + déploiement (europe-west9, Paris, privé)
+./deploy.sh          # build (nginx) + déploiement + IAP (europe-west9, Paris)
 ```
 
-Ouvrir l'app (accès privé → tunnel authentifié) :
+**Ouvrir l'app** : va simplement sur l'URL du service et connecte-toi avec un
+compte autorisé (**@wearemip.com** / organisation). Une page de connexion Google
+s'affiche, puis l'app. Plus besoin de tunnel.
 
-```bash
-gcloud run services proxy digitalxp-backoffice \
-  --project gen-lang-client-0804069470 --region europe-west9
-# puis http://localhost:8080
-```
+> L'accès est géré par **Identity-Aware Proxy** (`roles/iap.httpsResourceAccessor`).
+> Pour autoriser d'autres personnes : ajoute un membre (`user:…`, `group:…` ou
+> `domain:…`) via `gcloud beta iap web add-iam-policy-binding --resource-type=cloud-run`.
 
 > Le dossier `data/` n'est **pas** inclus dans l'image (`Dockerfile` + `.gcloudignore`).
 > Il reste présent en local pour le lanceur `Lancer-Backoffice.command`.

@@ -32,13 +32,21 @@ gcloud run deploy "$SERVICE" \
   --max-instances 2 \
   --quiet
 
+echo "→ IAP (login Google) — activation + autorisation du domaine…"
+gcloud run services update "$SERVICE" \
+  --project "$PROJECT" --region "$REGION" --iap --quiet
+# Domaine autorisé (IAM normalise vers le domaine principal de la Cloud Identity).
+gcloud beta iap web add-iam-policy-binding \
+  --resource-type=cloud-run --service="$SERVICE" --region="$REGION" --project="$PROJECT" \
+  --member="domain:wearemip.com" \
+  --role="roles/iap.httpsResourceAccessor" --quiet || true
+
 echo ""
-echo "✅ Déploiement terminé. URL du service :"
+echo "✅ Déploiement terminé. URL du service (login Google requis) :"
 gcloud run services describe "$SERVICE" \
   --project "$PROJECT" --region "$REGION" \
   --format="value(status.url)"
 
 echo ""
-echo "ℹ️  Accès privé : pour ouvrir l'app en local via un tunnel authentifié :"
-echo "    gcloud run services proxy $SERVICE --project $PROJECT --region $REGION"
-echo "    puis ouvrez http://localhost:8080"
+echo "ℹ️  Ouvre simplement l'URL dans un navigateur et connecte-toi avec un compte"
+echo "    autorisé (@wearemip.com / organisation). Plus besoin de tunnel."
