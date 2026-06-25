@@ -104,6 +104,29 @@ cliquables → agrandissement) directement sous chaque champ média de l'éditeu
 
 ---
 
+## Déploiement Cloud Run
+
+L'app est déployée sur **Cloud Run** (projet *DIGITAL AI FACTORY*) en **accès privé**
+et **sans JSON embarqué** : on **uploade le fichier en début de session** (bouton
+_Ouvrir_ / glisser-déposer), on édite, puis on _Sauvegarde_ / _Exporte_.
+
+```bash
+./deploy.sh          # build (nginx) + déploiement (europe-west9, Paris, privé)
+```
+
+Ouvrir l'app (accès privé → tunnel authentifié) :
+
+```bash
+gcloud run services proxy digitalxp-backoffice \
+  --project gen-lang-client-0804069470 --region europe-west9
+# puis http://localhost:8080
+```
+
+> Le dossier `data/` n'est **pas** inclus dans l'image (`Dockerfile` + `.gcloudignore`).
+> Il reste présent en local pour le lanceur `Lancer-Backoffice.command`.
+
+---
+
 ## Prochaine étape — Firebase
 
 L'architecture isole déjà l'accès aux données dans deux fonctions

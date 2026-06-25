@@ -1,6 +1,8 @@
-# Fichiers inutiles dans l'image Cloud Run (data/ et index.html restent inclus)
+# Fichiers exclus du build Cloud Run.
+# data/ est volontairement exclu : déploiement VIDE, le JSON est uploadé en session.
 .git
 .gitignore
 *.md
 Lancer-Backoffice.command
+data/
 .DS_Store
