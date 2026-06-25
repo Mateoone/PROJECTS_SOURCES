@@ -2,6 +2,12 @@
   "version": "0.0.1",
   "configurations": [
     {
+      "name": "digitalxp-backoffice",
+      "runtimeExecutable": "python3",
+      "runtimeArgs": ["-m", "http.server", "8777", "--directory", "digitalxp-backoffice"],
+      "port": 8777
+    },
+    {
       "name": "sketchfab-viewer",
       "runtimeExecutable": "python3",
       "runtimeArgs": ["-m", "http.server", "8765", "--directory", "sketchfab-viewer"],
