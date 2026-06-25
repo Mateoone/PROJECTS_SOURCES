@@ -254,6 +254,13 @@ select.inp{appearance:none;cursor:pointer;background-image:url("data:image/svg+x
 /* media preview hint */
 .mediahint{font-size:10px;color:var(--txt-faint);font-family:var(--mono)}
 
+/* read-only value (identifiants) */
+.ro-val{display:flex;align-items:center;gap:9px;background:var(--bg);border:1px dashed var(--line);border-radius:7px;padding:9px 11px;min-height:38px}
+.ro-val .lk{flex:0 0 14px;color:var(--txt-faint);display:grid;place-items:center}
+.ro-val .lk svg{width:14px;height:14px}
+.ro-val .rv{font-family:var(--mono);font-size:12.5px;color:var(--txt-dim);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
+.ro-val .ro-tag{margin-left:auto;font-size:9px;letter-spacing:.1em;text-transform:uppercase;color:var(--txt-faint);background:var(--panel-3);border:1px solid var(--line-soft);border-radius:10px;padding:2px 8px;flex:0 0 auto}
+
 /* advanced add field */
 .addfield{display:flex;gap:8px;margin-top:10px;padding-top:12px;border-top:1px dashed var(--line-soft)}
 .addfield input{flex:1}
@@ -450,6 +457,7 @@ const SVG = {
   alert:'<path d="M12 9v4M12 17h.01M10.3 3.9L2 18a2 2 0 0 0 1.7 3h16.6a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/>',
   flag:'<path d="M5 21V4M5 4h11l-2 4 2 4H5"/>',
   star:'<path d="M12 3l2.6 5.6 6.1.7-4.5 4.1 1.2 6L12 16.8 6.6 19.5l1.2-6L3.3 9.3l6.1-.7z"/>',
+  lock:'<rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/>',
 };
 function ico(name){return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">'+(SVG[name]||SVG.dot)+'</svg>';}
 
@@ -507,6 +515,7 @@ const GROUPS=[
   {key:'spec', title:'Caractéristiques', ico:'spec'},
   {key:'content', title:'Contenu', ico:'content'},
   {key:'behavior', title:'Comportement', ico:'behavior'},
+  {key:'ids', title:'Identifiants · lecture seule', ico:'lock'},
   {key:'advanced', title:'Avancé · autres champs', ico:'cog'},
 ];
 const FIELD_META={
@@ -597,8 +606,24 @@ const FIELD_META={
   'veilleTimer':{g:'behavior',l:'Timer veille (ms)',w:'number'},
   'veilleDigicode':{g:'behavior',l:'Digicode veille',w:'text'},
 };
-// fields hidden from advanced clutter but preserved
+// fields preserved but shown read-only (identifiants)
 const SYSTEM_FIELDS=new Set(['1q2w3e4r5t6y','__page_id__']);
+Object.assign(FIELD_META,{
+  '1q2w3e4r5t6y':{g:'ids',l:'Identifiant interne',w:'readonly'},
+  '__page_id__':{g:'ids',l:'ID de page',w:'readonly'},
+});
+// Index d'ordre = position dans FIELD_META → tri d'affichage cohérent.
+const FIELD_INDEX={}; Object.keys(FIELD_META).forEach((k,i)=>FIELD_INDEX[k]=i);
+// Métadonnée effective d'un champ (gère le cas dynamique de `id`).
+function metaFor(key,node){
+  if(key==='id'){
+    const t=tplKey(node), val=node[key];
+    if(t.startsWith('id')) return {g:'general',l:'Cible du lien (ID)',w:'text'};                              // nœud de navigation → éditable
+    if(val!=null && /^\d+$/.test(String(val).trim())) return {g:'ids',l:'Identifiant (interne)',w:'readonly'}; // id propre → lecture seule
+    return FIELD_META['id'];                                                                                   // sinon réf média → éditable
+  }
+  return FIELD_META[key] || inferMeta(key,node[key]);
+}
 
 /* ---------- App state ---------- */
 const STATE={
@@ -957,14 +982,15 @@ function renderEditor(){
   const node=nodeAt(STATE.selected);
   if(!node){STATE.selected=null;renderEmptyEditor();return;}
 
-  // group fields
+  // group fields (groupe via metaFor) puis tri par ordre logique (FIELD_INDEX)
   const groups={}; GROUPS.forEach(g=>groups[g.key]=[]);
   const keys=Object.keys(node).filter(k=>k!=='sub-items');
   for(const k of keys){
-    const meta=FIELD_META[k];
-    if(meta) groups[meta.g].push(k);
-    else if(!SYSTEM_FIELDS.has(k)) groups.advanced.push(k);
-    else groups.advanced.push(k); // system fields still editable in advanced
+    const m=metaFor(k,node);
+    (groups[m.g]||groups.advanced).push(k);
+  }
+  for(const gk in groups){
+    groups[gk].sort((a,b)=>(FIELD_INDEX[a]??1e6)-(FIELD_INDEX[b]??1e6));
   }
 
   let html='<div class="editor-head">';
@@ -1020,13 +1046,14 @@ function buildBreadcrumb(path){
 }
 
 function renderField(node,key){
-  const meta=FIELD_META[key]||inferMeta(key,node[key]);
+  const meta=metaFor(key,node);
   const val=node[key];
   const full=meta.full?' full':'';
   const klabel='<span class="k">'+escapeHtml(key)+'</span>';
   let inner='';
   switch(meta.w){
     case 'bool': return boolField(node,key,meta);
+    case 'readonly': inner=readonlyField(node,key); break;
     case 'color': inner=colorField(node,key); break;
     case 'csv': inner=csvField(node,key,meta); break;
     case 'tags': inner=tagsField(node,key); break;
@@ -1043,6 +1070,11 @@ function inferMeta(key,val){
   if(typeof val==='number') return {w:'number',l:key,g:'advanced'};
   if(typeof val==='string' && (val.length>60||val.includes('\n'))) return {w:'textarea',l:key,g:'advanced'};
   return {w:'text',l:key,g:'advanced'};
+}
+function readonlyField(node,key){
+  const v=node[key];
+  const disp=(v===''||v==null)?'—':String(v);
+  return '<div class="ro-val"><span class="lk">'+ico('lock')+'</span><span class="rv">'+escapeHtml(disp)+'</span><span class="ro-tag">lecture seule</span></div>';
 }
 
 function boolField(node,key,meta){
