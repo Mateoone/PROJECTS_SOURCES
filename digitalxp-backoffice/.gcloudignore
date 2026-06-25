@@ -1,0 +1,6 @@
+# Fichiers inutiles dans l'image Cloud Run (data/ et index.html restent inclus)
+.git
+.gitignore
+*.md
+Lancer-Backoffice.command
+.DS_Store
