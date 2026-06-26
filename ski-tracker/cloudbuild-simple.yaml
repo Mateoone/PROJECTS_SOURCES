@@ -3,12 +3,17 @@ steps:
     args:
       - build
       - '--tag=$_IMAGE:latest'
-      - '--build-arg=VITE_SUPABASE_URL=$_SUPABASE_URL'
-      - '--build-arg=VITE_SUPABASE_ANON_KEY=$_SUPABASE_ANON_KEY'
+      - '--build-arg=VITE_SUPABASE_URL=${_SUPABASE_URL}'
+      - '--build-arg=VITE_SUPABASE_ANON_KEY=${_SUPABASE_ANON_KEY}'
       - '-f=ski-tracker/Dockerfile'
       - 'ski-tracker'
   - name: 'gcr.io/cloud-builders/docker'
     args: [push, '$_IMAGE:latest']
 images: ['$_IMAGE:latest']
+substitutions:
+  _IMAGE: europe-west9-docker.pkg.dev/gen-lang-client-0804069470/ski-tracker/app
+  _SUPABASE_URL: https://cpbaomccpneahpjxgyae.supabase.co
+  _SUPABASE_ANON_KEY: sb_publishable_6XJuJqV6A_9rmbdjM3azHA_es-byRLG
 options:
   logging: CLOUD_LOGGING_ONLY
+  substitution_option: ALLOW_LOOSE

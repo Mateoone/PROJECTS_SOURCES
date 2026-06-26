@@ -4,11 +4,12 @@
 import { useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useSessionStore } from '@/stores/sessionStore'
-import type { Position, POI } from '@/types/database'
+import type { Position, POI, TeamMember } from '@/types/database'
 
 export function useSupabaseRealtime() {
   const sessionId = useSessionStore((s) => s.session?.id)
   const updateMemberPosition = useSessionStore((s) => s.updateMemberPosition)
+  const addMember = useSessionStore((s) => s.addMember)
   const addPOI = useSessionStore((s) => s.addPOI)
   const removePOI = useSessionStore((s) => s.removePOI)
   const activePOI = useSessionStore((s) => s.activePOI)
@@ -18,6 +19,18 @@ export function useSupabaseRealtime() {
 
     const channel = supabase
       .channel(`session:${sessionId}`)
+      .on<TeamMember>(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'team_members',
+          filter: `session_id=eq.${sessionId}`,
+        },
+        (payload) => {
+          addMember(payload.new)
+        }
+      )
       .on<Position>(
         'postgres_changes',
         {
@@ -78,5 +91,5 @@ export function useSupabaseRealtime() {
     return () => {
       supabase.removeChannel(channel)
     }
-  }, [sessionId, updateMemberPosition, addPOI, removePOI, activePOI])
+  }, [sessionId, updateMemberPosition, addMember, addPOI, removePOI, activePOI])
 }

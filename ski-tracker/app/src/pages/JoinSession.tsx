@@ -47,13 +47,13 @@ export function JoinSession() {
     setError(null)
 
     try {
-      const userId = await ensureAnonymousUser()
+      const userId = ensureAnonymousUser()
       setUserId(userId)
 
       // Verify token via Edge Function
       const { error: verifyErr } = await supabase.functions.invoke(
         'create-session-token',
-        { body: { session_id: sessionId, verify_token: token, user_id: userId } }
+        { body: { session_id: sessionId, verify_token: token } }
       )
       if (verifyErr) throw new Error('Token invalide ou session expirée')
 
@@ -86,7 +86,12 @@ export function JoinSession() {
       setSession(sessionData, false)
       navigate(`/session/${sessionId}`, { replace: true })
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Erreur lors de la connexion')
+      console.error('handleJoin error:', e)
+      const msg =
+        e instanceof Error ? e.message
+        : (e as { message?: string })?.message
+        ?? JSON.stringify(e)
+      setError(msg || 'Erreur lors de la connexion')
       setStep('enter-name')
     }
   }
