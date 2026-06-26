@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SATCOM — Timeline de visibilité</title>
+<style>
+  :root{
+    --bg:#fbfaf7; --panel:#ffffff; --ink:#23231f; --muted:#6b6a63;
+    --line:#e4e2da; --accent:#534ab7; --ok:#1d9e75; --bad:#d85a30;
+  }
+  @media (prefers-color-scheme: dark){
+    :root{ --bg:#1a1a18; --panel:#232320; --ink:#e8e6dd; --muted:#a3a199;
+           --line:#34332f; --accent:#afa9ec; --ok:#5dcaa5; --bad:#f0997b; }
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font:15px/1.55 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;
+       background:var(--bg);color:var(--ink);padding:20px}
+  h1{font-size:19px;font-weight:600;margin:0 0 4px}
+  .sub{color:var(--muted);margin:0 0 18px;font-size:13px}
+  .wrap{max-width:1080px;margin:0 auto}
+  .grid{display:grid;grid-template-columns:300px 1fr;gap:18px;align-items:start}
+  @media(max-width:840px){.grid{grid-template-columns:1fr}}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px}
+  label{display:block;font-size:12px;color:var(--muted);margin:10px 0 3px}
+  input,select{width:100%;padding:7px 8px;border:1px solid var(--line);border-radius:7px;
+       background:transparent;color:var(--ink);font:inherit;font-size:13px}
+  .row2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+  fieldset{border:1px solid var(--line);border-radius:9px;margin:12px 0 0;padding:8px 12px 12px}
+  legend{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;padding:0 5px}
+  button{margin-top:14px;width:100%;padding:10px;border:0;border-radius:8px;
+       background:var(--accent);color:#fff;font:inherit;font-weight:600;cursor:pointer}
+  button:disabled{opacity:.5;cursor:wait}
+  .chips{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:12px}
+  .chip{background:var(--bg);border:1px solid var(--line);border-radius:20px;
+        padding:5px 12px;font-size:13px}
+  .chip b{font-size:15px}
+  .legend{display:flex;gap:12px;flex-wrap:wrap;margin-top:10px;font-size:12px;color:var(--muted)}
+  .legend span{display:inline-flex;align-items:center;gap:5px}
+  .sw{width:11px;height:11px;border-radius:3px;display:inline-block}
+  .err{color:var(--bad);font-size:13px;margin-top:10px;white-space:pre-wrap}
+  .hint{color:var(--muted);font-size:12px;margin-top:8px}
+  svg{width:100%;height:auto;display:block}
+  #tip{position:fixed;pointer-events:none;background:var(--panel);border:1px solid var(--line);
+       border-radius:8px;padding:8px 10px;font-size:12px;box-shadow:0 4px 14px rgba(0,0,0,.12);
+       opacity:0;transition:opacity .08s;z-index:9}
+  #tip b{color:var(--ink)} #tip i{color:var(--muted);font-style:normal}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Timeline de visibilité — SATCOM Coverage Engine</h1>
+  <p class="sub">Client léger. Appelle <code>POST /scenario</code> et trace le satellite servant, les handovers et l'élévation sur la fenêtre.</p>
+
+  <div class="grid">
+    <div class="card">
+      <label>API base URL</label>
+      <input id="api" value="http://127.0.0.1:8000">
+
+      <fieldset><legend>Site</legend>
+        <label>Nom</label><input id="s_name" value="Kiev">
+        <div class="row2">
+          <div><label>Latitude</label><input id="s_lat" type="number" value="50.45" step="0.01"></div>
+          <div><label>Longitude</label><input id="s_lon" type="number" value="30.52" step="0.01"></div>
+        </div>
+        <label>Masque d'élévation (°)</label><input id="s_mask" type="number" value="25" step="1">
+      </fieldset>
+
+      <fieldset><legend>Terminal</legend>
+        <label>G/T (dB/K)</label><input id="t_gt" type="number" value="10.8" step="0.1">
+      </fieldset>
+
+      <fieldset><legend>Constellation Walker (~Amazon Leo)</legend>
+        <div class="row2">
+          <div><label>Altitude (km)</label><input id="w_alt" type="number" value="610"></div>
+          <div><label>Inclinaison (°)</label><input id="w_inc" type="number" value="51.9" step="0.1"></div>
+        </div>
+        <div class="row2">
+          <div><label>Plans</label><input id="w_pl" type="number" value="28"></div>
+          <div><label>Sats/plan</label><input id="w_sp" type="number" value="28"></div>
+        </div>
+        <div class="row2">
+          <div><label>EIRP (dBW)</label><input id="w_eirp" type="number" value="38"></div>
+          <div><label>G/T sat (dB/K)</label><input id="w_gt" type="number" value="6"></div>
+        </div>
+      </fieldset>
+
+      <fieldset><legend>Fenêtre</legend>
+        <label>Début (UTC)</label><input id="epoch" type="datetime-local" value="2026-06-26T12:00">
+        <div class="row2">
+          <div><label>Durée (s)</label><input id="dur" type="number" value="1800"></div>
+          <div><label>Pas (s)</label><input id="step" type="number" value="30"></div>
+        </div>
+        <label>Handover</label>
+        <select id="ho"><option value="max_elevation">max élévation</option><option value="max_cn">max C/N</option></select>
+      </fieldset>
+
+      <button id="run">Lancer le scénario</button>
+      <div id="err" class="err"></div>
+      <div class="hint">Le service doit tourner (<code>uvicorn app.main:app</code>) et CORS est activé côté API.</div>
+    </div>
+
+    <div class="card">
+      <div id="chips" class="chips"></div>
+      <div id="plot"></div>
+      <div id="legend" class="legend"></div>
+    </div>
+  </div>
+</div>
+<div id="tip"></div>
+
+<script>
+const $ = id => document.getElementById(id);
+const tip = $('tip');
+
+function hue(name){ let h=0; for(const c of name) h=(h*31+c.charCodeAt(0))%360; return h; }
+function satColor(name){ return name ? `hsl(${hue(name)} 62% 52%)` : 'var(--line)'; }
+
+function buildRequest(){
+  const epochLocal = $('epoch').value || '2026-06-26T12:00';
+  return {
+    site:{ name:$('s_name').value, lat_deg:+$('s_lat').value, lon_deg:+$('s_lon').value,
+           elevation_mask_deg:+$('s_mask').value },
+    terminal:{ name:'terminal', gt_dbk:+$('t_gt').value },
+    walker:{ name:'LeoKa', altitude_km:+$('w_alt').value, inclination_deg:+$('w_inc').value,
+             planes:+$('w_pl').value, sats_per_plane:+$('w_sp').value, phasing:1,
+             eirp_dbw:+$('w_eirp').value, gt_dbk:+$('w_gt').value },
+    epoch_iso: epochLocal.length===16 ? epochLocal+':00Z' : epochLocal+'Z',
+    duration_s:+$('dur').value, step_s:+$('step').value,
+    handover_policy:$('ho').value
+  };
+}
+
+async function run(){
+  $('err').textContent=''; $('run').disabled=true; $('run').textContent='Calcul…';
+  try{
+    const base=$('api').value.replace(/\/$/,'');
+    const res=await fetch(base+'/scenario',{method:'POST',
+      headers:{'Content-Type':'application/json'}, body:JSON.stringify(buildRequest())});
+    if(!res.ok) throw new Error('HTTP '+res.status+' — '+await res.text());
+    render(await res.json());
+  }catch(e){
+    $('err').textContent='Échec : '+e.message+
+      '\n(Vérifie que l\'API tourne et que l\'URL est correcte.)';
+    $('plot').innerHTML=''; $('chips').innerHTML=''; $('legend').innerHTML='';
+  }finally{ $('run').disabled=false; $('run').textContent='Lancer le scénario'; }
+}
+
+function render(d){
+  $('chips').innerHTML =
+    chip('Satellites propagés', d.n_satellites) +
+    chip('Disponibilité', d.availability_pct+' %', d.availability_pct>=99?'var(--ok)':'') +
+    chip('Handovers', d.handover_count) +
+    chip('Fenêtre', (d.duration_s/60)+' min · pas '+d.step_s+'s');
+
+  const S=d.series, dur=d.duration_s;
+  const W=1000, H=300, m={l:46,r:14,t:14,b:28};
+  const pw=W-m.l-m.r, ribY=m.t, ribH=30, elY=ribY+ribH+22, elH=H-elY-m.b;
+  const X=t=> m.l + (t/dur)*pw;
+  const Yel=e=> elY+elH - (Math.max(0,Math.min(90,e))/90)*elH;
+
+  let svg=`<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Timeline de visibilité">`;
+  // axes
+  svg+=`<line x1="${m.l}" y1="${elY+elH}" x2="${W-m.r}" y2="${elY+elH}" stroke="var(--line)"/>`;
+  for(const e of [0,30,60,90]) svg+=`<line x1="${m.l}" y1="${Yel(e)}" x2="${W-m.r}" y2="${Yel(e)}" stroke="var(--line)" stroke-dasharray="2 4"/><text x="${m.l-8}" y="${Yel(e)+4}" text-anchor="end" font-size="11" fill="var(--muted)">${e}°</text>`;
+  const tickEvery=chooseTick(dur);
+  for(let t=0;t<=dur;t+=tickEvery) svg+=`<text x="${X(t)}" y="${elY+elH+18}" text-anchor="middle" font-size="11" fill="var(--muted)">${t/60}′</text>`;
+
+  // masque
+  const mask=+$('s_mask').value;
+  svg+=`<line x1="${m.l}" y1="${Yel(mask)}" x2="${W-m.r}" y2="${Yel(mask)}" stroke="var(--bad)" stroke-width="1" stroke-dasharray="5 3"/><text x="${W-m.r}" y="${Yel(mask)-4}" text-anchor="end" font-size="10" fill="var(--bad)">masque ${mask}°</text>`;
+
+  // ruban du satellite servant (runs consécutifs)
+  let i=0; const served=new Set();
+  while(i<S.length){
+    let j=i; while(j+1<S.length && S[j+1].served===S[i].served) j++;
+    const t0=S[i].t_s, t1=(j+1<S.length?S[j+1].t_s:dur);
+    const name=S[i].served; if(name) served.add(name);
+    svg+=`<rect x="${X(t0)}" y="${ribY}" width="${Math.max(0,X(t1)-X(t0))}" height="${ribH}" fill="${satColor(name)}" opacity="${name?0.9:0.25}"/>`;
+    i=j+1;
+  }
+  svg+=`<text x="${m.l}" y="${ribY-3}" font-size="11" fill="var(--muted)">Satellite servant</text>`;
+
+  // handovers
+  for(const h of d.handovers) svg+=`<line x1="${X(h.t_s)}" y1="${ribY}" x2="${X(h.t_s)}" y2="${elY+elH}" stroke="var(--ink)" stroke-width="0.5" stroke-dasharray="2 3" opacity="0.5"/>`;
+
+  // courbe d'élévation
+  const pts=S.filter(p=>p.served).map(p=>`${X(p.t_s)},${Yel(p.elevation_deg)}`).join(' ');
+  svg+=`<polyline points="${pts}" fill="none" stroke="var(--accent)" stroke-width="2"/>`;
+  svg+=`<text x="${m.l}" y="${elY-6}" font-size="11" fill="var(--muted)">Élévation du satellite servant</text>`;
+
+  // zone de capture pour l'infobulle
+  svg+=`<rect id="hit" x="${m.l}" y="${ribY}" width="${pw}" height="${elY+elH-ribY}" fill="transparent"/>`;
+  svg+=`</svg>`;
+  $('plot').innerHTML=svg;
+
+  // légende
+  $('legend').innerHTML=[...served].sort().map(n=>
+    `<span><i class="sw" style="background:${satColor(n)}"></i>${n}</span>`).join('') ||
+    '<span>Aucune visibilité sur la fenêtre.</span>';
+
+  // infobulle
+  const el=$('plot').querySelector('svg');
+  const hit=$('plot').querySelector('#hit');
+  hit.addEventListener('mousemove', ev=>{
+    const r=el.getBoundingClientRect();
+    const xu=(ev.clientX-r.left)*(W/r.width);
+    const t=Math.max(0,Math.min(dur,(xu-m.l)/pw*dur));
+    const p=S.reduce((a,b)=>Math.abs(b.t_s-t)<Math.abs(a.t_s-t)?b:a);
+    tip.innerHTML = p.served
+      ? `<b>t+${p.t_s}s</b> · <i>${p.served}</i><br>él ${p.elevation_deg}° · az ${p.azimuth_deg}°<br>C/N ${p.cn_total_db} dB · ${p.modcod||'—'}<br><b>${p.throughput_mbps??'—'} Mbps</b>`
+      : `<b>t+${p.t_s}s</b><br><i>pas de visibilité</i>`;
+    tip.style.left=(ev.clientX+14)+'px'; tip.style.top=(ev.clientY+14)+'px'; tip.style.opacity=1;
+  });
+  hit.addEventListener('mouseleave',()=>tip.style.opacity=0);
+}
+
+function chip(k,v,col){ return `<div class="chip">${k} <b style="color:${col||'var(--ink)'}">${v}</b></div>`; }
+function chooseTick(dur){ const opts=[60,120,300,600,900,1800,3600]; return opts.find(o=>dur/o<=12)||3600; }
+
+$('run').addEventListener('click', run);
+</script>
+</body>
+</html>

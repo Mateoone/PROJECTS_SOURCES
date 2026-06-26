@@ -1,5 +1,11 @@
 # Dépendances
 **/node_modules/
+**/.venv/
+
+# Python
+**/__pycache__/
+**/*.pyc
+**/.pytest_cache/
 
 # Artefacts de build
 **/dist/
