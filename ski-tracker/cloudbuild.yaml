@@ -1,0 +1,60 @@
+steps:
+  # 1. Build the Docker image
+  - name: 'gcr.io/cloud-builders/docker'
+    id: 'build-image'
+    args:
+      - build
+      - '--tag=$$REGION-docker.pkg.dev/$PROJECT_ID/ski-tracker/app:$SHORT_SHA'
+      - '--tag=$$REGION-docker.pkg.dev/$PROJECT_ID/ski-tracker/app:latest'
+      - '--build-arg=VITE_SUPABASE_URL=$$VITE_SUPABASE_URL'
+      - '--build-arg=VITE_SUPABASE_ANON_KEY=$$VITE_SUPABASE_ANON_KEY'
+      - '-f=ski-tracker/Dockerfile'
+      - 'ski-tracker'
+    secretEnv:
+      - VITE_SUPABASE_URL
+      - VITE_SUPABASE_ANON_KEY
+    env:
+      - 'REGION=europe-west1'
+
+  # 2. Push to Artifact Registry
+  - name: 'gcr.io/cloud-builders/docker'
+    id: 'push-image'
+    args:
+      - push
+      - '--all-tags'
+      - 'europe-west1-docker.pkg.dev/$PROJECT_ID/ski-tracker/app'
+
+  # 3. Deploy to Cloud Run
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    id: 'deploy-cloud-run'
+    entrypoint: gcloud
+    args:
+      - run
+      - deploy
+      - ski-tracker
+      - '--image=europe-west1-docker.pkg.dev/$PROJECT_ID/ski-tracker/app:$SHORT_SHA'
+      - '--region=europe-west1'
+      - '--platform=managed'
+      - '--allow-unauthenticated'
+      - '--min-instances=0'
+      - '--max-instances=5'
+      - '--memory=256Mi'
+      - '--cpu=1'
+      - '--port=8080'
+      - '--set-env-vars=VITE_SUPABASE_URL=$$VITE_SUPABASE_URL,VITE_SUPABASE_ANON_KEY=$$VITE_SUPABASE_ANON_KEY'
+    secretEnv:
+      - VITE_SUPABASE_URL
+      - VITE_SUPABASE_ANON_KEY
+
+availableSecrets:
+  secretManager:
+    - versionName: projects/$PROJECT_ID/secrets/ski-tracker-supabase-url/versions/latest
+      env: VITE_SUPABASE_URL
+    - versionName: projects/$PROJECT_ID/secrets/ski-tracker-supabase-anon-key/versions/latest
+      env: VITE_SUPABASE_ANON_KEY
+
+images:
+  - 'europe-west1-docker.pkg.dev/$PROJECT_ID/ski-tracker/app'
+
+options:
+  logging: CLOUD_LOGGING_ONLY

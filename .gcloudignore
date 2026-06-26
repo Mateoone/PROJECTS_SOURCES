@@ -1,0 +1,7 @@
+.gcloudignore
+.git
+ski-tracker/app/node_modules/
+ski-tracker/app/dist/
+ski-tracker/app/.env.local
+smartcrop/__pycache__/
+smartcrop/*.pyc
