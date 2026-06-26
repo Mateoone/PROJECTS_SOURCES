@@ -162,12 +162,24 @@ button{font-family:inherit}
 .breadcrumb a{color:var(--txt-dim);text-decoration:none;cursor:pointer;padding:1px 4px;border-radius:4px}
 .breadcrumb a:hover{background:var(--panel-3);color:var(--txt)}
 .breadcrumb .sep{color:var(--txt-faint);opacity:.5}
-.editor-titlerow{display:flex;align-items:center;gap:13px}
-.editor-titlerow .bigico{width:38px;height:38px;border-radius:9px;display:grid;place-items:center;background:var(--panel-3);border:1px solid var(--line);color:var(--accent-2)}
+.editor-titlerow{display:flex;align-items:flex-start;gap:13px}
+.editor-titlerow .bigico{width:38px;height:38px;border-radius:9px;display:grid;place-items:center;background:var(--panel-3);border:1px solid var(--line);color:var(--accent-2);flex:0 0 38px;margin-top:2px}
 .editor-titlerow .bigico svg{width:21px;height:21px}
-.editor-titlerow h1{font-size:19px;margin:0;font-weight:700;line-height:1.2}
-.editor-titlerow .ttype{font-size:10.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--txt-faint);margin-top:3px}
-.editor-titlerow .htools{margin-left:auto;display:flex;gap:8px}
+.editor-titlerow .titlecol{min-width:0;flex:1}
+.editor-titlerow .ttype{font-size:10.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--txt-faint);margin-top:4px}
+.editor-titlerow .htools{margin-left:auto;display:flex;gap:8px;flex:0 0 auto}
+/* titre éditable (clic = champ) */
+.title-edit{font-size:19px;font-weight:700;line-height:1.2;color:var(--txt);background:transparent;border:1px solid transparent;border-radius:7px;padding:3px 8px;margin:-3px -8px;width:100%;outline:none;font-family:inherit;transition:.12s;cursor:text}
+.title-edit:hover{border-color:var(--line);background:rgba(255,255,255,.02)}
+.title-edit:focus{border-color:var(--accent);background:var(--bg);box-shadow:0 0 0 3px rgba(226,0,26,.12)}
+.title-edit::placeholder{color:var(--txt-faint);font-weight:600}
+.title-edit.sm{font-size:13px;font-weight:700;flex:1;min-width:0;padding:3px 7px;margin:0}
+/* bandeau identifiants compact */
+.idstrip{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+.idchip{display:inline-flex;align-items:center;gap:5px;font-size:10px;color:var(--txt-faint);background:var(--panel);border:1px solid var(--line-soft);border-radius:20px;padding:2px 9px 2px 7px}
+.idchip svg{width:11px;height:11px;opacity:.7}
+.idchip em{font-style:normal;text-transform:uppercase;letter-spacing:.08em}
+.idchip b{color:var(--txt-dim);font-family:var(--mono);font-weight:600}
 
 .editor-body{flex:1;min-height:0;overflow-y:scroll;overflow-x:hidden;padding:18px 22px 80px}
 
@@ -209,14 +221,17 @@ button{font-family:inherit}
 .childbanner svg{width:16px;height:16px;color:var(--accent-2);flex:0 0 16px}
 .childbanner b{font-size:11px;letter-spacing:.1em;text-transform:uppercase}
 .childbanner span{font-size:11px;color:var(--txt-faint)}
-.childblock{border:1px solid var(--line);border-radius:11px;margin-bottom:14px;overflow:hidden;background:rgba(255,255,255,.015)}
-.childblock-h{display:flex;align-items:center;gap:10px;padding:10px 14px;background:var(--panel-2);border-bottom:1px solid var(--line-soft)}
+/* juxtaposition des sous-blocs pour économiser la place */
+.childgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(330px,1fr));gap:14px;align-items:start}
+.childblock{border:1px solid var(--line);border-radius:11px;overflow:hidden;background:rgba(255,255,255,.015);min-width:0}
+.childblock-h{display:flex;align-items:center;gap:9px;padding:8px 12px;background:var(--panel-2);border-bottom:1px solid var(--line-soft)}
 .childblock-h .cbi{width:18px;height:18px;color:var(--accent-2);display:grid;place-items:center;flex:0 0 18px}
 .childblock-h .cbi svg{width:16px;height:16px}
-.childblock-h b{font-size:13px}
-.childblock-h .ctpl{font-size:9px;letter-spacing:.1em;text-transform:uppercase;color:var(--txt-faint);background:var(--panel-3);border:1px solid var(--line-soft);border-radius:10px;padding:2px 8px}
-.childblock-h .openchild{margin-left:auto}
-.childblock .section{margin:11px 12px;border-color:var(--line-soft);background:var(--panel)}
+.childblock-h .ctpl{font-size:9px;letter-spacing:.1em;text-transform:uppercase;color:var(--txt-faint);background:var(--panel-3);border:1px solid var(--line-soft);border-radius:10px;padding:2px 8px;flex:0 0 auto}
+.childblock-h .openchild{margin-left:auto;flex:0 0 auto;padding:0 8px}
+.childblock .section{margin:10px;border-color:var(--line-soft);background:var(--panel)}
+.childblock .grid{grid-template-columns:1fr}
+.childblock textarea.inp{min-height:46px}
 
 .grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px 16px}
 .field{display:flex;flex-direction:column;gap:5px;min-width:0}
@@ -250,6 +265,16 @@ select.inp{appearance:none;cursor:pointer;background-image:url("data:image/svg+x
 .swatch:hover .nm{opacity:1}
 .color-custom{display:flex;align-items:center;gap:8px;margin-top:6px}
 .color-custom input{flex:1}
+/* sélecteur de domaines (couleurs) */
+.domaingrid{display:flex;flex-wrap:wrap;gap:7px}
+.domain{display:inline-flex;align-items:center;gap:8px;height:32px;padding:0 12px 0 9px;border-radius:8px;border:1px solid var(--line);background:var(--panel-3);color:var(--txt-dim);cursor:pointer;font-size:11.5px;font-weight:600;font-family:inherit;transition:.12s}
+.domain:hover{border-color:var(--accent-deep);color:var(--txt)}
+.domain.sel{border-color:#fff;box-shadow:0 0 0 2px var(--accent);color:var(--txt)}
+.domain .dsw{width:14px;height:14px;border-radius:4px;flex:0 0 14px;border:1px solid rgba(255,255,255,.22)}
+.domain.none{color:var(--txt-faint)}
+.color-legacy{display:flex;align-items:center;gap:7px;margin-top:9px;font-size:11px;color:var(--warn)}
+.color-legacy svg{width:14px;height:14px;flex:0 0 14px}
+.color-legacy b{color:var(--txt)}
 
 /* csv parts */
 .csv{display:flex;gap:8px;flex-wrap:wrap}
@@ -506,10 +531,13 @@ function tplLabel(node){
 }
 
 /* ---------- Colors (FR/EN -> hex) ---------- */
+// Couleurs = domaines de l'expérience (cf. Menu).
 const COLORS=[
-  {n:'bleu',hex:'#2f6fed'},{n:'cyan',hex:'#22b8cf'},{n:'jaune',hex:'#f4c020'},
-  {n:'purple',hex:'#8b5cf6'},{n:'grey',hex:'#8a93a6'},{n:'rouge',hex:'#e23b3b'},
-  {n:'marron',hex:'#9c6b4a'},{n:'vert',hex:'#3fb964'},{n:'orange',hex:'#f08a24'},{n:'red',hex:'#e23b3b'},
+  {n:'cyan',hex:'#22b8cf',d:'Air dominance'},
+  {n:'marron',hex:'#9c6b4a',d:'Battlefield eng.'},
+  {n:'jaune',hex:'#f4c020',d:'GBAD'},
+  {n:'bleu',hex:'#2f6fed',d:'Maritime'},
+  {n:'purple',hex:'#8b5cf6',d:'Scenarios'},
 ];
 function colorHex(v){
   if(!v) return null;
@@ -1000,6 +1028,7 @@ function renderEditor(){
   const groups={}; GROUPS.forEach(g=>groups[g.key]=[]);
   const keys=Object.keys(node).filter(k=>k!=='sub-items');
   for(const k of keys){
+    if(k==='label') continue; // le libellé est édité via le titre
     const m=metaFor(k,node);
     (groups[m.g]||groups.advanced).push(k);
   }
@@ -1007,13 +1036,24 @@ function renderEditor(){
     groups[gk].sort((a,b)=>(FIELD_INDEX[a]??1e6)-(FIELD_INDEX[b]??1e6));
   }
 
+  // bandeau compact des identifiants (lecture seule, juste informatif)
+  let idstrip='';
+  if(groups.ids.length){
+    idstrip='<div class="idstrip">'+groups.ids.map(k=>{
+      const v=node[k]; const lbl=k==='id'?'ID':k==='1q2w3e4r5t6y'?'réf':k==='__page_id__'?'page':k;
+      return '<span class="idchip" title="'+escapeHtml(k)+' (lecture seule)">'+ico('lock')+'<em>'+escapeHtml(lbl)+'</em><b>'+escapeHtml((v===''||v==null)?'—':String(v))+'</b></span>';
+    }).join('')+'</div>';
+  }
+
   let html='<div class="editor-head">';
-  // breadcrumb
   html+='<div class="breadcrumb" id="breadcrumb">'+buildBreadcrumb(STATE.selected)+'</div>';
   html+='<div class="editor-titlerow">'+
     '<div class="bigico">'+ico(nodeIcon(node))+'</div>'+
-    '<div><h1 id="ttl">'+escapeHtml(node.label||node.title||'(sans nom)')+'</h1>'+
-      '<div class="ttype">'+escapeHtml(tplLabel(node))+' · '+(node['sub-items']||[]).length+' enfant(s)</div></div>'+
+    '<div class="titlecol">'+
+      '<input id="ttlEdit" class="title-edit" value="'+escapeHtml(node.label||'')+'" placeholder="(sans nom)" spellcheck="false" />'+
+      '<div class="ttype">'+escapeHtml(tplLabel(node))+' · '+(node['sub-items']||[]).length+' enfant(s)</div>'+
+      idstrip+
+    '</div>'+
     '<div class="htools">'+
       '<button class="btn sm ghost" id="ed-add">'+ico('plus')+'Enfant</button>'+
       '<button class="btn sm ghost" id="ed-dup">'+ico('dup')+'Dupliquer</button>'+
@@ -1024,10 +1064,11 @@ function renderEditor(){
 
   html+='<div class="editor-body" id="editorBody">';
   html+='<div id="mainFields">';
-  // sections du bloc courant
+  // sections du bloc courant (label → titre ; ids → en-tête)
   for(const g of GROUPS){
+    if(g.key==='ids') continue;
     const fkeys=groups[g.key];
-    if(!fkeys.length && g.key!=='general') continue;
+    if(!fkeys.length) continue;
     const collapsed = (g.key==='advanced');
     html+='<div class="section'+(collapsed?' collapsed':'')+'" data-sec="'+g.key+'">'+
       '<div class="sec-head"><span class="sc-ico">'+ico(g.ico)+'</span><h3>'+g.title+'</h3>'+
@@ -1040,23 +1081,26 @@ function renderEditor(){
   }
   html+='</div>'; // #mainFields
 
-  // Sous-blocs de données : enfants « feuilles » porteurs de specs/textes (ex. Characteristics)
-  const dataChildren=(node['sub-items']||[]).map((c,i)=>({c,i})).filter(({c})=>isDataLeaf(c));
+  // Sous-blocs de données (specs/contenu) — juxtaposés pour économiser la place
+  const dataChildren=(node['sub-items']||[]).map((c,i)=>({c,i})).filter(({c})=>isDataBlock(c));
   if(dataChildren.length){
     html+='<div class="childbanner">'+ico('spec')+'<b>Données des sous-blocs</b><span>éditables directement ici</span></div>';
+    html+='<div class="childgrid">';
     for(const {c,i} of dataChildren){
       const cpath=[...STATE.selected,i].join('/');
       html+='<div class="childblock" data-childpath="'+cpath+'">'+
-        '<div class="childblock-h"><span class="cbi">'+ico(nodeIcon(c))+'</span><b>'+escapeHtml(c.label||tplLabel(c))+'</b>'+
+        '<div class="childblock-h"><span class="cbi">'+ico(nodeIcon(c))+'</span>'+
+        '<input class="title-edit sm" data-fk="label" value="'+escapeHtml(c.label||'')+'" placeholder="(sans nom)" spellcheck="false" />'+
         ((c.Template||c.template)?'<span class="ctpl">'+escapeHtml(c.Template||c.template)+'</span>':'')+
-        '<button class="btn sm ghost openchild" data-open="'+cpath+'">'+ico('link')+'Ouvrir le bloc</button></div>'+
+        '<button class="btn sm ghost openchild" data-open="'+cpath+'" title="Ouvrir ce bloc">'+ico('link')+'</button></div>'+
         renderSections(c,{skipIds:true})+
       '</div>';
     }
+    html+='</div>'; // childgrid
   }
-  // raw
+  // raw (rempli à l'ouverture de la section)
   html+='<div class="section collapsed" data-sec="__raw"><div class="sec-head"><span class="sc-ico">'+ico('code')+'</span><h3>JSON brut de ce bloc</h3><span class="chev">'+ico('chev')+'</span></div>'+
-    '<div class="sec-body"><div class="rawbox"><textarea id="rawNode" spellcheck="false"></textarea>'+
+    '<div class="sec-body"><div class="rawbox"><textarea id="rawNode" spellcheck="false" placeholder="(JSON du bloc)"></textarea>'+
     '<div class="raw-actions"><button class="btn sm primary" id="rawApply">'+ico('check')+'Appliquer le JSON</button><span class="raw-msg" id="rawMsg"></span></div></div></div></div>';
 
   html+='</div>';
@@ -1121,15 +1165,16 @@ function templateField(node){
 }
 function colorField(node,key){
   const cur=node[key]||'';
-  let html='<div class="colorgrid">';
-  html+='<div class="swatch none'+(cur===''?' sel':'')+'" data-color="" title="Aucune">∅</div>';
+  const known=COLORS.some(c=>c.n.toLowerCase()===cur.toLowerCase())||cur==='';
+  let html='<div class="domaingrid">';
+  html+='<button type="button" class="domain none'+(cur===''?' sel':'')+'" data-color="">Aucun</button>';
   for(const c of COLORS){
-    html+='<div class="swatch'+(cur.toLowerCase()===c.n.toLowerCase()?' sel':'')+'" data-color="'+c.n+'" style="background:'+c.hex+'"><span class="nm">'+c.n+'</span></div>';
+    const on=cur.toLowerCase()===c.n.toLowerCase();
+    html+='<button type="button" class="domain'+(on?' sel':'')+'" data-color="'+c.n+'"><span class="dsw" style="background:'+c.hex+'"></span>'+escapeHtml(c.d)+'</button>';
   }
   html+='</div>';
-  const known=COLORS.some(c=>c.n.toLowerCase()===cur.toLowerCase())||cur==='';
-  html+='<div class="color-custom"><input class="inp" type="text" data-fk="'+escapeHtml(key)+'" value="'+escapeHtml(cur)+'" placeholder="valeur libre…" />'+
-    (!known?'<span class="mediahint">valeur personnalisée</span>':'')+'</div>';
+  html+='<input type="hidden" data-fk="'+escapeHtml(key)+'" value="'+escapeHtml(cur)+'" />';
+  if(!known) html+='<div class="color-legacy">'+ico('alert')+'Valeur héritée : <b>'+escapeHtml(cur)+'</b> — choisissez un domaine pour la remplacer.</div>';
   return html;
 }
 function csvField(node,key,meta){
@@ -1157,20 +1202,17 @@ function tagsField(node,key){
 function renderAddFieldUI(){
   return '<div class="addfield"><input class="inp" id="afKey" placeholder="nom du champ" /><input class="inp" id="afVal" placeholder="valeur" /><button class="btn sm" id="afBtn">'+ico('plus')+'Ajouter</button></div>';
 }
-// Un enfant « feuille » (sans sous-items) porteur de données techniques/textes (specs ou contenu).
-function isDataLeaf(c){
+// Un enfant porteur de données techniques/textes (specs ou contenu) — ex. Characteristics, Features.
+function isDataBlock(c){
   if(!c || typeof c!=='object') return false;
-  if((c['sub-items']||[]).length) return false;
   const skip=new Set(['label','template','Template','1q2w3e4r5t6y','__page_id__','sub-items']);
-  const dataKeys=Object.keys(c).filter(k=>!skip.has(k));
-  if(!dataKeys.length) return false;
-  return dataKeys.some(k=>{ const m=metaFor(k,c); return m.g==='spec'||m.g==='content'; });
+  return Object.keys(c).some(k=>{ if(skip.has(k))return false; const m=metaFor(k,c); return m.g==='spec'||m.g==='content'; });
 }
-// Rend les sections (groupes) d'un nœud — réutilisé pour les sous-blocs inline.
+// Rend les sections (groupes) d'un nœud — réutilisé pour les sous-blocs inline (label exclu → en-tête).
 function renderSections(node,opts){
   opts=opts||{};
   const groups={}; GROUPS.forEach(g=>groups[g.key]=[]);
-  Object.keys(node).filter(k=>k!=='sub-items').forEach(k=>{ const m=metaFor(k,node); (groups[m.g]||groups.advanced).push(k); });
+  Object.keys(node).filter(k=>k!=='sub-items'&&k!=='label').forEach(k=>{ const m=metaFor(k,node); (groups[m.g]||groups.advanced).push(k); });
   for(const gk in groups) groups[gk].sort((a,b)=>(FIELD_INDEX[a]??1e6)-(FIELD_INDEX[b]??1e6));
   let html='';
   for(const g of GROUPS){
@@ -1190,7 +1232,7 @@ function renderSections(node,opts){
 function afterFieldEdit(node,k){
   if(k==='label'||k==='title'){
     renderTree();
-    if(node===nodeAt(STATE.selected)){ const t=byId('ttl'); if(t) t.textContent=node.label||node.title||'(sans nom)'; }
+    if(node===nodeAt(STATE.selected)){ const t=byId('ttlEdit'); if(t && t!==document.activeElement) t.value=node.label||''; }
   }
 }
 
@@ -1213,9 +1255,16 @@ function wireEditor(node){
     sec.classList.toggle('collapsed');
     if(!sec.classList.contains('collapsed')){fillRaw();sec.scrollIntoView({behavior:'smooth',block:'nearest'});}
   });
-  // section collapse
+  // titre éditable (= libellé du bloc)
+  const te=byId('ttlEdit');
+  if(te) te.addEventListener('input',()=>{ node.label=te.value; markDirty(); renderTree(); });
+  // section collapse (+ remplit le JSON brut à l'ouverture)
   editorContent.querySelectorAll('.sec-head').forEach(h=>{
-    h.addEventListener('click',()=>h.parentNode.classList.toggle('collapsed'));
+    h.addEventListener('click',()=>{
+      const sec=h.parentNode;
+      sec.classList.toggle('collapsed');
+      if(sec.dataset.sec==='__raw' && !sec.classList.contains('collapsed')) fillRaw();
+    });
   });
   // champs du bloc courant + des sous-blocs de données inline
   wireFields(byId('mainFields')||editorContent, node);
@@ -1260,11 +1309,11 @@ function wireFields(root,node){
   });
   root.querySelectorAll('[data-color]').forEach(sw=>{
     sw.addEventListener('click',()=>{
-      const k=sw.closest('.field').querySelector('[data-fk]')?.dataset.fk||'color';
+      const fld=sw.closest('.field');
+      const k=fld.querySelector('[data-fk]')?.dataset.fk||'color';
       const v=sw.dataset.color;
       node[k]=v;
-      const fld=sw.closest('.field');
-      fld.querySelectorAll('.swatch').forEach(s=>s.classList.remove('sel'));
+      fld.querySelectorAll('[data-color]').forEach(s=>s.classList.remove('sel'));
       sw.classList.add('sel');
       const inp=fld.querySelector('[data-fk]'); if(inp) inp.value=v;
       markDirty(); renderTree();
