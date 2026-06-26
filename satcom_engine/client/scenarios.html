@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SATCOM — 4 scénarios de service (GEO vs LEO)</title>
+<style>
+  :root{
+    --bg:#fbfaf7; --panel:#ffffff; --ink:#23231f; --muted:#6b6a63;
+    --line:#e4e2da; --accent:#534ab7; --ok:#1d9e75; --warn:#c79a22; --bad:#d85a30;
+    --geo:#534ab7; --geo2:#2f7fb8; --leo:#1d9e75;
+  }
+  @media (prefers-color-scheme: dark){
+    :root{ --bg:#1a1a18; --panel:#232320; --ink:#e8e6dd; --muted:#a3a199;
+           --line:#34332f; --accent:#afa9ec; --ok:#5dcaa5; --warn:#e3c46b; --bad:#f0997b;
+           --geo:#afa9ec; --geo2:#7cc0e8; --leo:#5dcaa5; }
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font:15px/1.55 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;
+       background:var(--bg);color:var(--ink);padding:20px}
+  h1{font-size:20px;font-weight:600;margin:0 0 4px}
+  .sub{color:var(--muted);margin:0 0 16px;font-size:13px;max-width:900px}
+  .wrap{max-width:1180px;margin:0 auto}
+  .bar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:18px}
+  .bar input{flex:1;min-width:240px;padding:7px 9px;border:1px solid var(--line);border-radius:7px;
+       background:var(--panel);color:var(--ink);font:inherit;font-size:13px}
+  .bar label{font-size:12px;color:var(--muted)}
+  button{padding:9px 16px;border:0;border-radius:8px;background:var(--accent);color:#fff;
+       font:inherit;font-weight:600;cursor:pointer}
+  button:disabled{opacity:.5;cursor:wait}
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+  @media(max-width:880px){.grid{grid-template-columns:1fr}}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px 18px;
+        display:flex;flex-direction:column;min-height:300px}
+  .ttl{display:flex;align-items:baseline;gap:8px;margin:0}
+  .num{font-weight:700;color:var(--accent);font-size:13px;border:1.5px solid var(--accent);
+       border-radius:6px;padding:0 7px;line-height:1.5}
+  .ttl h2{font-size:15.5px;font-weight:600;margin:0}
+  .ctx{color:var(--muted);font-size:12.5px;margin:5px 0 4px}
+  .pills{display:flex;gap:6px;flex-wrap:wrap;margin:6px 0 2px}
+  .pill{font-size:11px;color:var(--muted);background:var(--bg);border:1px solid var(--line);
+        border-radius:20px;padding:2px 9px}
+  svg{width:100%;height:auto;display:block;margin-top:4px}
+  .verdict{margin-top:auto;padding-top:12px;font-size:13px;display:flex;gap:8px;align-items:flex-start}
+  .badge{flex:none;font-weight:700;font-size:11px;letter-spacing:.02em;text-transform:uppercase;
+         border-radius:6px;padding:3px 8px;color:#fff}
+  .b-ok{background:var(--ok)} .b-warn{background:var(--warn)} .b-bad{background:var(--bad)}
+  .vtext b{color:var(--ink)}
+  .loading,.err{color:var(--muted);font-size:13px;padding:24px 0;text-align:center}
+  .err{color:var(--bad);white-space:pre-wrap}
+  .foot{color:var(--muted);font-size:12px;margin-top:18px;line-height:1.7}
+  .foot code{background:var(--bg);border:1px solid var(--line);border-radius:5px;padding:1px 5px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>SATCOM — 4 scénarios de service</h1>
+  <p class="sub">NanoBlade Ka comparée sur trois services — <b>Syracuse</b> (GEO bande X),
+  <b>Inmarsat GX</b> (GEO Ka) et <b>Amazon Leo</b> (LEO Ka) — pour quatre cas d'emploi.
+  Chaque barre = débit utile (Mbps) calculé en direct par le <i>SATCOM Coverage Engine</i> ;
+  une liaison GEO sous le masque d'élévation local est <span style="color:var(--bad)">indisponible</span>.</p>
+
+  <div class="bar">
+    <label>API</label>
+    <input id="api" value="https://satcom-coverage-engine-58899663812.europe-west9.run.app">
+    <button id="run">Recalculer</button>
+  </div>
+
+  <div id="grid" class="grid"></div>
+
+  <p class="foot">
+    Hypothèses (illustratives, ajustables) : forme d'onde commune (porteuse par défaut du moteur,
+    balayage ACM DVB-S2X) ; GEO routes évaluées aux deux extrémités → <i>pire cas</i> retenu pour la
+    feasibilité ; LEO = coquille Walker ~Amazon Leo (28×28 @ 610 km, i=51,9°) sur 30 min, disponibilité =
+    % de pas au-dessus du masque. Débit LEO = médiane des pas servis.
+    Source de vérité : <code>POST /link</code> (GEO) et <code>POST /scenario</code> (LEO).
+  </p>
+</div>
+
+<script>
+const API_DEFAULT = "https://satcom-coverage-engine-58899663812.europe-west9.run.app";
+const THR_MAX = 12; // Mbps — échelle commune des barres
+
+// ---- Définition des 4 scénarios ------------------------------------------
+const SCENARIOS = [
+  {
+    n:1, title:"Europe — liaison mobile Paris → Kiev",
+    ctx:"NanoBlade Ka sur véhicule (CCA X) · région Europe",
+    sites:[{name:"Paris",lat:48.85,lon:2.35},{name:"Kiev",lat:50.45,lon:30.52}],
+    mask:10,
+    geo:[
+      {key:"Syracuse",  label:"Syracuse · GEO X",  lon:5,  up:8000, down:7500, eirp:52, gt:5,  bw:40, gtTerm:7.0,  color:"var(--geo2)"},
+      {key:"InmarsatGX",label:"Inmarsat GX · GEO Ka",lon:11, up:30000,down:20000,eirp:60, gt:10, bw:72, gtTerm:10.8, color:"var(--geo)"},
+    ],
+    leo:{label:"Amazon Leo · LEO Ka", eirp:38, gt:6, gtTerm:10.8, color:"var(--leo)"},
+  },
+  {
+    n:2, title:"Golfe — liaison mobile Abu Dhabi → Téhéran",
+    ctx:"NanoBlade Ka sur véhicule (CCA X) · région Golfe",
+    sites:[{name:"Abu Dhabi",lat:24.45,lon:54.30},{name:"Téhéran",lat:35.69,lon:51.39}],
+    mask:10,
+    geo:[
+      {key:"Syracuse",  label:"Syracuse · GEO X",  lon:47, up:8000, down:7500, eirp:52, gt:5,  bw:40, gtTerm:7.0,  color:"var(--geo2)"},
+      {key:"InmarsatGX",label:"Inmarsat GX · GEO Ka",lon:63, up:30000,down:20000,eirp:60, gt:10, bw:72, gtTerm:10.8, color:"var(--geo)"},
+    ],
+    leo:{label:"Amazon Leo · LEO Ka", eirp:38, gt:6, gtTerm:10.8, color:"var(--leo)"},
+  },
+  {
+    n:3, title:"Ukraine — grappe de véhicules, urbain dense",
+    ctx:"Terminaux véhicule Ka · masque urbain élevé (Kharkiv)",
+    sites:[{name:"Kharkiv",lat:49.99,lon:36.23}],
+    mask:30,
+    geo:[
+      {key:"Syracuse",  label:"Syracuse · GEO X",  lon:5,  up:8000, down:7500, eirp:52, gt:5,  bw:40, gtTerm:7.0, color:"var(--geo2)"},
+      {key:"InmarsatGX",label:"Inmarsat GX · GEO Ka",lon:11, up:30000,down:20000,eirp:60, gt:10, bw:72, gtTerm:8.0, color:"var(--geo)"},
+    ],
+    leo:{label:"Amazon Leo · LEO Ka", eirp:38, gt:6, gtTerm:8.0, color:"var(--leo)"},
+  },
+  {
+    n:4, title:"Méditerranée orientale — USV maritime",
+    ctx:"Terminal maritime Ka sur drone de surface (USV) · ciel ouvert",
+    sites:[{name:"USV Est-Med",lat:34.0,lon:33.0}],
+    mask:7,
+    geo:[
+      {key:"Syracuse",  label:"Syracuse · GEO X",  lon:5,  up:8000, down:7500, eirp:52, gt:5,  bw:40, gtTerm:7.0,  color:"var(--geo2)"},
+      {key:"InmarsatGX",label:"Inmarsat GX · GEO Ka",lon:11, up:30000,down:20000,eirp:60, gt:10, bw:72, gtTerm:9.5, color:"var(--geo)"},
+    ],
+    leo:{label:"Amazon Leo · LEO Ka", eirp:38, gt:6, gtTerm:9.5, color:"var(--leo)"},
+  },
+];
+
+const $ = id => document.getElementById(id);
+const median = a => { if(!a.length) return 0; const s=[...a].sort((x,y)=>x-y); const m=s.length>>1;
+  return s.length%2 ? s[m] : (s[m-1]+s[m])/2; };
+
+async function post(base, path, body){
+  const r = await fetch(base+path, {method:"POST",
+    headers:{"Content-Type":"application/json"}, body:JSON.stringify(body)});
+  if(!r.ok) throw new Error("HTTP "+r.status+" — "+await r.text());
+  return r.json();
+}
+
+async function evalGeo(base, sc, g){
+  let feasible=true, elMin=Infinity, thr=Infinity, blockedAt=null;
+  for(const s of sc.sites){
+    const d = await post(base, "/link", {
+      site:{name:s.name, lat_deg:s.lat, lon_deg:s.lon, elevation_mask_deg:sc.mask},
+      terminal:{name:"term", gt_dbk:g.gtTerm},
+      carrier:{uplink_mhz:g.up, downlink_mhz:g.down},
+      satellite_geo:{name:g.key, longitude_deg:g.lon, eirp_dbw:g.eirp, gt_dbk:g.gt,
+                     transponder_bw_mhz:g.bw, sfd_dbw_m2:-90},
+    });
+    elMin = Math.min(elMin, d.geometry.elevation_deg);
+    if(d.throughput_mbps!=null) thr = Math.min(thr, d.throughput_mbps);
+    if(!d.feasible){ feasible=false; if(!d.geometry.visible) blockedAt=s.name; }
+  }
+  return {kind:"GEO", label:g.label, color:g.color, feasible,
+          el:elMin, thr: feasible ? thr : 0, blockedAt, note:`él ≥ ${elMin.toFixed(0)}°`};
+}
+
+async function evalLeo(base, sc){
+  let availMin=100, ho=0, thrs=[];
+  for(const s of sc.sites){
+    const d = await post(base, "/scenario", {
+      site:{name:s.name, lat_deg:s.lat, lon_deg:s.lon, elevation_mask_deg:sc.mask},
+      terminal:{name:"term", gt_dbk:sc.leo.gtTerm},
+      walker:{name:"AmazonLeo", altitude_km:610, inclination_deg:51.9, planes:28,
+              sats_per_plane:28, phasing:1, eirp_dbw:sc.leo.eirp, gt_dbk:sc.leo.gt},
+      epoch_iso:"2026-06-26T12:00:00Z", duration_s:1800, step_s:30,
+      handover_policy:"max_elevation",
+    });
+    availMin = Math.min(availMin, d.availability_pct);
+    ho = Math.max(ho, d.handover_count);
+    thrs.push(...d.series.filter(p=>p.served && p.throughput_mbps!=null).map(p=>p.throughput_mbps));
+  }
+  const feasible = availMin>0;
+  return {kind:"LEO", label:sc.leo.label, color:sc.leo.color, feasible,
+          avail:availMin, ho, thr: feasible ? median(thrs) : 0,
+          note:`${availMin.toFixed(0)}% · ${ho} handovers`};
+}
+
+function verdict(rows, sc){
+  const geoOk = rows.filter(r=>r.kind==="GEO" && r.feasible);
+  const leo = rows.find(r=>r.kind==="LEO");
+  if(geoOk.length===0){
+    return {cls:"b-bad", txt:`<b>GEO indisponible</b> — masque urbain ${sc.mask}° au-dessus de l'élévation `+
+      `(GEO ~${Math.max(...rows.filter(r=>r.kind==="GEO").map(r=>r.el)).toFixed(0)}°). `+
+      `Seul <b>${leo.label.split(" ·")[0]}</b> assure le service (${leo.avail.toFixed(0)}%, ${leo.ho} handovers ≈ 1/min).`};
+  }
+  const best = geoOk.reduce((a,b)=>b.thr>a.thr?b:a);
+  const cls = geoOk.length===rows.filter(r=>r.kind==="GEO").length ? "b-ok" : "b-warn";
+  return {cls, txt:`Couverture de bout en bout. Primaire <b>${best.label.split(" ·")[0]}</b> `+
+    `(${best.thr.toFixed(1)} Mbps, él ≥ ${best.el.toFixed(0)}°)`+
+    (leo&&leo.feasible?`, <b>${leo.label.split(" ·")[0]}</b> en secours (${leo.avail.toFixed(0)}%).`:`.`)};
+}
+
+function chart(rows){
+  const W=600, rowH=46, top=10, lblW=150, barX=lblW+8, barW=W-barX-118, H=top+rows.length*rowH+6;
+  let s=`<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Débit utile par service">`;
+  rows.forEach((r,i)=>{
+    const y=top+i*rowH, cy=y+rowH/2;
+    const w=Math.max(2, Math.min(1, r.thr/THR_MAX)*barW);
+    const col = r.feasible ? r.color : "var(--line)";
+    s+=`<text x="0" y="${cy-3}" font-size="12.5" font-weight="600" fill="var(--ink)">${r.label}</text>`;
+    s+=`<text x="0" y="${cy+13}" font-size="11" fill="var(--muted)">${r.note}</text>`;
+    s+=`<rect x="${barX}" y="${y+9}" width="${barW}" height="20" rx="5" fill="var(--bg)" stroke="var(--line)"/>`;
+    s+=`<rect x="${barX}" y="${y+9}" width="${w}" height="20" rx="5" fill="${col}" opacity="${r.feasible?1:.5}"/>`;
+    if(r.feasible)
+      s+=`<text x="${barX+w+7}" y="${cy+4}" font-size="12.5" font-weight="700" fill="var(--ink)">${r.thr.toFixed(1)} Mbps</text>`;
+    else
+      s+=`<text x="${barX+8}" y="${cy+4}" font-size="11.5" font-weight="600" fill="var(--bad)">indisponible${r.blockedAt?" ("+r.blockedAt+")":""}</text>`;
+  });
+  s+=`</svg>`;
+  return s;
+}
+
+async function evalScenario(base, sc){
+  const geoRows = [];
+  for(const g of sc.geo) geoRows.push(await evalGeo(base, sc, g));
+  const leoRow = await evalLeo(base, sc);
+  return [...geoRows, leoRow];
+}
+
+function cardShell(sc){
+  return `<div class="card" id="sc${sc.n}">
+    <p class="ttl"><span class="num">${sc.n}</span><h2>${sc.title}</h2></p>
+    <p class="ctx">${sc.ctx}</p>
+    <div class="pills">
+      <span class="pill">${sc.sites.map(s=>s.name).join(" → ")}</span>
+      <span class="pill">masque ${sc.mask}°</span>
+    </div>
+    <div class="body"><div class="loading">Calcul en cours…</div></div>
+  </div>`;
+}
+
+async function run(){
+  const base = ($("api").value || API_DEFAULT).replace(/\/$/,"");
+  $("run").disabled=true; $("run").textContent="Calcul…";
+  $("grid").innerHTML = SCENARIOS.map(cardShell).join("");
+  await Promise.all(SCENARIOS.map(async sc=>{
+    const body = document.querySelector(`#sc${sc.n} .body`);
+    try{
+      const rows = await evalScenario(base, sc);
+      const v = verdict(rows, sc);
+      body.innerHTML = chart(rows) +
+        `<div class="verdict"><span class="badge ${v.cls}">${v.cls==="b-bad"?"LEO seul":v.cls==="b-warn"?"partiel":"OK"}</span>`+
+        `<span class="vtext">${v.txt}</span></div>`;
+    }catch(e){
+      body.innerHTML = `<div class="err">Échec : ${e.message}\n(Vérifie l'URL de l'API et que le service répond.)</div>`;
+    }
+  }));
+  $("run").disabled=false; $("run").textContent="Recalculer";
+}
+
+$("run").addEventListener("click", run);
+run();
+</script>
+</body>
+</html>
