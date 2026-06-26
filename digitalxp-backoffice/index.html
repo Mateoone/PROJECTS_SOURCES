@@ -204,6 +204,20 @@ button{font-family:inherit}
 .section.collapsed>.sec-body{display:none}
 .sec-body{padding:6px 14px 14px}
 
+/* sous-blocs de données inline */
+.childbanner{display:flex;align-items:center;gap:9px;margin:22px 2px 12px;padding:9px 13px;border-radius:8px;background:linear-gradient(90deg,rgba(226,0,26,.12),transparent);border:1px solid var(--line-soft);border-left:3px solid var(--accent)}
+.childbanner svg{width:16px;height:16px;color:var(--accent-2);flex:0 0 16px}
+.childbanner b{font-size:11px;letter-spacing:.1em;text-transform:uppercase}
+.childbanner span{font-size:11px;color:var(--txt-faint)}
+.childblock{border:1px solid var(--line);border-radius:11px;margin-bottom:14px;overflow:hidden;background:rgba(255,255,255,.015)}
+.childblock-h{display:flex;align-items:center;gap:10px;padding:10px 14px;background:var(--panel-2);border-bottom:1px solid var(--line-soft)}
+.childblock-h .cbi{width:18px;height:18px;color:var(--accent-2);display:grid;place-items:center;flex:0 0 18px}
+.childblock-h .cbi svg{width:16px;height:16px}
+.childblock-h b{font-size:13px}
+.childblock-h .ctpl{font-size:9px;letter-spacing:.1em;text-transform:uppercase;color:var(--txt-faint);background:var(--panel-3);border:1px solid var(--line-soft);border-radius:10px;padding:2px 8px}
+.childblock-h .openchild{margin-left:auto}
+.childblock .section{margin:11px 12px;border-color:var(--line-soft);background:var(--panel)}
+
 .grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px 16px}
 .field{display:flex;flex-direction:column;gap:5px;min-width:0}
 .field.full{grid-column:1 / -1}
@@ -1009,7 +1023,8 @@ function renderEditor(){
   html+='</div>';
 
   html+='<div class="editor-body" id="editorBody">';
-  // sections
+  html+='<div id="mainFields">';
+  // sections du bloc courant
   for(const g of GROUPS){
     const fkeys=groups[g.key];
     if(!fkeys.length && g.key!=='general') continue;
@@ -1022,6 +1037,22 @@ function renderEditor(){
     html+='</div>';
     if(g.key==='advanced') html+=renderAddFieldUI();
     html+='</div></div>';
+  }
+  html+='</div>'; // #mainFields
+
+  // Sous-blocs de données : enfants « feuilles » porteurs de specs/textes (ex. Characteristics)
+  const dataChildren=(node['sub-items']||[]).map((c,i)=>({c,i})).filter(({c})=>isDataLeaf(c));
+  if(dataChildren.length){
+    html+='<div class="childbanner">'+ico('spec')+'<b>Données des sous-blocs</b><span>éditables directement ici</span></div>';
+    for(const {c,i} of dataChildren){
+      const cpath=[...STATE.selected,i].join('/');
+      html+='<div class="childblock" data-childpath="'+cpath+'">'+
+        '<div class="childblock-h"><span class="cbi">'+ico(nodeIcon(c))+'</span><b>'+escapeHtml(c.label||tplLabel(c))+'</b>'+
+        ((c.Template||c.template)?'<span class="ctpl">'+escapeHtml(c.Template||c.template)+'</span>':'')+
+        '<button class="btn sm ghost openchild" data-open="'+cpath+'">'+ico('link')+'Ouvrir le bloc</button></div>'+
+        renderSections(c,{skipIds:true})+
+      '</div>';
+    }
   }
   // raw
   html+='<div class="section collapsed" data-sec="__raw"><div class="sec-head"><span class="sc-ico">'+ico('code')+'</span><h3>JSON brut de ce bloc</h3><span class="chev">'+ico('chev')+'</span></div>'+
@@ -1126,6 +1157,42 @@ function tagsField(node,key){
 function renderAddFieldUI(){
   return '<div class="addfield"><input class="inp" id="afKey" placeholder="nom du champ" /><input class="inp" id="afVal" placeholder="valeur" /><button class="btn sm" id="afBtn">'+ico('plus')+'Ajouter</button></div>';
 }
+// Un enfant « feuille » (sans sous-items) porteur de données techniques/textes (specs ou contenu).
+function isDataLeaf(c){
+  if(!c || typeof c!=='object') return false;
+  if((c['sub-items']||[]).length) return false;
+  const skip=new Set(['label','template','Template','1q2w3e4r5t6y','__page_id__','sub-items']);
+  const dataKeys=Object.keys(c).filter(k=>!skip.has(k));
+  if(!dataKeys.length) return false;
+  return dataKeys.some(k=>{ const m=metaFor(k,c); return m.g==='spec'||m.g==='content'; });
+}
+// Rend les sections (groupes) d'un nœud — réutilisé pour les sous-blocs inline.
+function renderSections(node,opts){
+  opts=opts||{};
+  const groups={}; GROUPS.forEach(g=>groups[g.key]=[]);
+  Object.keys(node).filter(k=>k!=='sub-items').forEach(k=>{ const m=metaFor(k,node); (groups[m.g]||groups.advanced).push(k); });
+  for(const gk in groups) groups[gk].sort((a,b)=>(FIELD_INDEX[a]??1e6)-(FIELD_INDEX[b]??1e6));
+  let html='';
+  for(const g of GROUPS){
+    if(opts.skipIds && g.key==='ids') continue;
+    const fkeys=groups[g.key]; if(!fkeys.length) continue;
+    const collapsed=(g.key==='advanced');
+    html+='<div class="section'+(collapsed?' collapsed':'')+'" data-sec="'+g.key+'">'+
+      '<div class="sec-head"><span class="sc-ico">'+ico(g.ico)+'</span><h3>'+g.title+'</h3>'+
+      '<span class="scount">'+fkeys.length+'</span><span class="chev">'+ico('chev')+'</span></div>'+
+      '<div class="sec-body"><div class="grid">';
+    for(const k of fkeys) html+=renderField(node,k);
+    html+='</div></div></div>';
+  }
+  return html;
+}
+// Après édition d'un champ : rafraîchir l'arbre + le titre si c'est le bloc sélectionné.
+function afterFieldEdit(node,k){
+  if(k==='label'||k==='title'){
+    renderTree();
+    if(node===nodeAt(STATE.selected)){ const t=byId('ttl'); if(t) t.textContent=node.label||node.title||'(sans nom)'; }
+  }
+}
 
 /* ----- wire editor events ----- */
 function wireEditor(node){
@@ -1150,8 +1217,27 @@ function wireEditor(node){
   editorContent.querySelectorAll('.sec-head').forEach(h=>{
     h.addEventListener('click',()=>h.parentNode.classList.toggle('collapsed'));
   });
-  // text/number/select/media inputs
-  editorContent.querySelectorAll('[data-fk]').forEach(inp=>{
+  // champs du bloc courant + des sous-blocs de données inline
+  wireFields(byId('mainFields')||editorContent, node);
+  editorContent.querySelectorAll('.childblock').forEach(cb=>{
+    const cp=cb.dataset.childpath.split('/').map(Number);
+    const cnode=nodeAt(cp); if(cnode) wireFields(cb,cnode);
+  });
+  editorContent.querySelectorAll('.openchild').forEach(b=>b.addEventListener('click',()=>selectNode(b.dataset.open.split('/').map(Number))));
+  // add field
+  byId('afBtn')?.addEventListener('click',()=>{
+    const k=byId('afKey').value.trim(); if(!k) return;
+    let v=byId('afVal').value;
+    if(v==='true') v=true; else if(v==='false') v=false; else if(v!=='' && !isNaN(+v)) v=+v;
+    node[k]=v; markDirty(); renderEditor();
+  });
+  // raw apply
+  byId('rawApply')?.addEventListener('click',()=>applyRaw(node));
+}
+
+/* Câble tous les widgets de champ présents dans `root` pour qu'ils éditent `node`. */
+function wireFields(root,node){
+  root.querySelectorAll('[data-fk]').forEach(inp=>{
     const handler=()=>{
       const k=inp.dataset.fk;
       let v=inp.value;
@@ -1163,18 +1249,16 @@ function wireEditor(node){
     const meta=FIELD_META[inp.dataset.fk];
     if(meta && meta.w==='media') inp.addEventListener('change',()=>refreshFieldPreview(inp));
   });
-  // toggles
-  editorContent.querySelectorAll('[data-bool]').forEach(t=>{
+  root.querySelectorAll('[data-bool]').forEach(t=>{
     t.addEventListener('click',()=>{
       const k=t.dataset.bool;
       node[k]=!node[k];
       t.classList.toggle('on',node[k]);
       t.querySelector('.tlbl').textContent=node[k]?'Oui':'Non';
-      markDirty(); maybeRefreshRow(k);
+      markDirty(); afterFieldEdit(node,k);
     });
   });
-  // color swatches
-  editorContent.querySelectorAll('[data-color]').forEach(sw=>{
+  root.querySelectorAll('[data-color]').forEach(sw=>{
     sw.addEventListener('click',()=>{
       const k=sw.closest('.field').querySelector('[data-fk]')?.dataset.fk||'color';
       const v=sw.dataset.color;
@@ -1186,22 +1270,19 @@ function wireEditor(node){
       markDirty(); renderTree();
     });
   });
-  // csv
-  editorContent.querySelectorAll('[data-csv]').forEach(box=>{
+  root.querySelectorAll('[data-csv]').forEach(box=>{
     box.querySelectorAll('input').forEach(inp=>{
       inp.addEventListener('input',()=>{
         const k=box.dataset.csv;
         const sep=box.dataset.sep==='comma_space'?', ':',';
         const vals=[...box.querySelectorAll('input')].map(x=>x.value.trim());
-        // trim trailing empties
         while(vals.length>1 && vals[vals.length-1]==='') vals.pop();
         node[k]=vals.join(sep);
         markDirty();
       });
     });
   });
-  // tags
-  editorContent.querySelectorAll('[data-tags]').forEach(box=>{
+  root.querySelectorAll('[data-tags]').forEach(box=>{
     const k=box.dataset.tags;
     const sync=()=>{
       const tags=[...box.querySelectorAll('.tag')].map(t=>t.firstChild.textContent);
@@ -1222,20 +1303,11 @@ function wireEditor(node){
       }
     });
   });
-  // add field
-  byId('afBtn')?.addEventListener('click',()=>{
-    const k=byId('afKey').value.trim(); if(!k) return;
-    let v=byId('afVal').value;
-    if(v==='true') v=true; else if(v==='false') v=false; else if(v!=='' && !isNaN(+v)) v=+v;
-    node[k]=v; markDirty(); renderEditor();
-  });
-  // raw apply
-  byId('rawApply')?.addEventListener('click',()=>applyRaw(node));
 }
 function setField(node,k,v,inp){
   node[k]=v;
   markDirty();
-  if(k==='label'||k==='title') maybeRefreshRow(k);
+  if(k==='label'||k==='title') afterFieldEdit(node,k);
   if(k==='color'){
     // sync swatches
     const fld=inp.closest('.field');
