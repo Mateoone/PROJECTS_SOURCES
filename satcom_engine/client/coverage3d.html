@@ -44,7 +44,7 @@
             border:1px solid rgba(46,230,166,.35);border-radius:11px;overflow:hidden;display:none;
             box-shadow:0 8px 30px rgba(0,0,0,.5);font-size:12px;backdrop-filter:blur(6px)}
   #satpanel .ph{position:relative;height:150px;background:#05100c;display:flex;align-items:center;justify-content:center}
-  #satpanel .ph img{width:100%;height:100%;object-fit:cover}
+  #satpanel .ph img,#satpanel .ph video{width:100%;height:100%;object-fit:cover;background:#05100c}
   #satpanel .ph .noimg{color:rgba(46,230,166,.5);font-size:34px}
   #satpanel .hd{position:absolute;left:10px;top:8px;right:34px}
   #satpanel .hd .nm{font:600 14px ui-monospace,monospace;color:#fff;text-shadow:0 1px 3px #000}
@@ -115,7 +115,7 @@
       <input id="mbx" type="password" placeholder="token Mapbox (option)" title="Colle ton token Mapbox pour l'imagerie satellite-streets-v12">
       <button id="mbx_go">OK</button></div>
     <div id="satpanel">
-      <div class="ph"><img id="sp_img" alt="" style="display:none"><span class="noimg" id="sp_noimg">🛰</span>
+      <div class="ph"><video id="sp_vid" muted loop playsinline preload="metadata" style="display:none"></video><img id="sp_img" alt="" style="display:none"><span class="noimg" id="sp_noimg">🛰</span>
         <div class="hd"><div class="nm" id="sp_name">—</div><div class="fm" id="sp_fam"></div></div>
         <button class="cl" id="sp_close">×</button></div>
       <div class="bd">
@@ -155,6 +155,7 @@ const WIKI={SYRACUSE:{fam:"Syracuse · militaire X (GEO)",term:"Syracuse (satell
             INMARSAT:{fam:"Inmarsat Global Xpress · Ka (GEO)",term:"Inmarsat"},
             KUIPER:{fam:"Amazon Kuiper / Leo · Ka (LEO)",term:"Project Kuiper"},
             STARLINK:{fam:"SpaceX Starlink · Ku/Ka (LEO)",term:"Starlink"}};
+const VIDEO={SYRACUSE:"media/SYRACUSE.mp4",INMARSAT:"media/INMARSAT.mp4",KUIPER:"media/KUIPER.mp4",STARLINK:"media/STARLINK.mp4"};
 const $=id=>document.getElementById(id);
 
 // ---------- imagerie : base garantie (Natural Earth) + calque photo-reel ----------
@@ -335,13 +336,16 @@ async function showSat(s){
   $("sp_alt").textContent=o.alt.toFixed(0)+" km"; $("sp_inc").textContent=o.inc.toFixed(2)+"°";
   $("sp_per").textContent=o.per.toFixed(1)+" min"; $("sp_vel").textContent=o.vel.toFixed(2)+" km/s";
   panelSat=s; updateSatLive();
-  $("sp_img").style.display="none"; $("sp_noimg").style.display="block"; $("sp_desc").textContent=""; $("sp_wiki").textContent="";
+  // video de la famille (a la place de l'image web)
+  const vurl=VIDEO[s.fam], vid=$("sp_vid");
+  if(vurl){ if(vid.getAttribute("src")!==vurl) vid.src=vurl; vid.style.display="block";
+    $("sp_img").style.display="none"; $("sp_noimg").style.display="none"; vid.currentTime=0; vid.play().catch(()=>{}); }
+  else { vid.pause(); vid.style.display="none"; $("sp_img").style.display="none"; $("sp_noimg").style.display="block"; }
+  $("sp_desc").textContent=""; $("sp_wiki").textContent="";
   $("satpanel").style.display="block";
   try{ let info=wikiCache[w.term];
     if(!info){ const r=await fetch("https://en.wikipedia.org/api/rest_v1/page/summary/"+encodeURIComponent(w.term)+"?redirect=true"); info=await r.json(); wikiCache[w.term]=info; }
     if(panelSat!==s) return;
-    const img=(info.originalimage&&info.originalimage.source)||(info.thumbnail&&info.thumbnail.source);
-    if(img){ $("sp_img").src=img; $("sp_img").style.display="block"; $("sp_noimg").style.display="none"; }
     $("sp_desc").textContent=info.extract||"";
     if(info.content_urls){ $("sp_wiki").textContent="Wikipedia ↗"; $("sp_wiki").href=info.content_urls.desktop.page; }
   }catch(e){}
@@ -351,7 +355,7 @@ function updateSatLive(){ const s=panelSat; if(!s) return; const c=s.prop&&s.pro
   const sp=carto(c); $("sp_pos").textContent=sp.lat.toFixed(2)+"°, "+sp.lon.toFixed(2)+"°";
   if(activeSite){ const el=elevToSat(activeSite.lat,activeSite.lon,sp.lat,sp.lon,sp.h);
     $("sp_el").textContent=(el>=0?el.toFixed(0)+"° ":"sous horizon ")+"("+activeSite.name+")"; } }
-$("sp_close").onclick=()=>{ $("satpanel").style.display="none"; panelSat=null; };
+$("sp_close").onclick=()=>{ $("satpanel").style.display="none"; $("sp_vid").pause(); panelSat=null; };
 viewer.screenSpaceEventHandler.setInputAction(ev=>{ const p=viewer.scene.pick(ev.position);
   if(p&&p.id&&satByEntity.has(p.id)) showSat(satByEntity.get(p.id)); }, Cesium.ScreenSpaceEventType.LEFT_CLICK);
 
