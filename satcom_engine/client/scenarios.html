@@ -8,13 +8,17 @@
   :root{
     --bg:#fbfaf7; --panel:#ffffff; --ink:#23231f; --muted:#6b6a63;
     --line:#e4e2da; --accent:#534ab7; --ok:#1d9e75; --warn:#c79a22; --bad:#d85a30;
-    --geo:#534ab7; --geo2:#2f7fb8; --leo:#1d9e75;
+    --geo:#534ab7; --geo2:#2f7fb8; --leo:#1d9e75; --star:#2b74c4;
   }
   @media (prefers-color-scheme: dark){
     :root{ --bg:#1a1a18; --panel:#232320; --ink:#e8e6dd; --muted:#a3a199;
            --line:#34332f; --accent:#afa9ec; --ok:#5dcaa5; --warn:#e3c46b; --bad:#f0997b;
-           --geo:#afa9ec; --geo2:#7cc0e8; --leo:#5dcaa5; }
+           --geo:#afa9ec; --geo2:#7cc0e8; --leo:#5dcaa5; --star:#6cb6ff; }
   }
+  nav.topnav{display:flex;gap:4px;background:var(--panel);border:1px solid var(--line);border-radius:10px;
+       padding:4px;margin:0 0 16px;width:fit-content}
+  nav.topnav a{font-size:13px;color:var(--muted);text-decoration:none;padding:6px 14px;border-radius:7px;font-weight:600}
+  nav.topnav a.on{background:var(--accent);color:#fff} nav.topnav a:hover{color:var(--ink)}
   *{box-sizing:border-box}
   body{margin:0;font:15px/1.55 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;
        background:var(--bg);color:var(--ink);padding:20px}
@@ -68,9 +72,10 @@
 </head>
 <body>
 <div class="wrap">
+  <nav class="topnav"><a href="coverage3d.html">Couverture 3D</a><a href="scenarios.html" class="on">4 scénarios</a></nav>
   <h1>SATCOM — 4 scénarios de service</h1>
-  <p class="sub">Trois services — <b>Syracuse</b> (GEO bande X), <b>Inmarsat GX</b> (GEO Ka) et
-  <b>Amazon Leo</b> (LEO Ka) — sur quatre cas d'emploi. Débit utile (Mbps) calculé en direct par le
+  <p class="sub">Quatre services — <b>Syracuse</b> (GEO X), <b>Inmarsat GX</b> (GEO Ka),
+  <b>Amazon Leo</b> et <b>Starlink</b> (LEO Ka) — sur quatre cas d'emploi. Débit utile (Mbps) calculé en direct par le
   <i>SATCOM Coverage Engine</i>, <b>élévation</b> et <b>atténuation pluie</b> (ITU-R P.618) intégrées ;
   une liaison GEO sous le masque local est <span style="color:var(--bad)">indisponible</span>.</p>
 
@@ -78,8 +83,6 @@
     <label>API</label>
     <input id="api" value="https://satcom-coverage-engine-58899663812.europe-west9.run.app">
     <button id="run">Recalculer</button>
-    <a href="coverage3d.html" style="padding:9px 16px;border-radius:8px;border:1px solid var(--accent);
-       color:var(--accent);text-decoration:none;font-weight:600;font-size:14px;white-space:nowrap;">Vue 3D ↗</a>
   </div>
 
   <div id="grid" class="grid"></div>
@@ -96,6 +99,7 @@
     routes évaluées au <i>pire cas</i> (élévation minimale). <b>Pluie</b> : ITU-R P.618/P.838 simplifié,
     R<sub>0.01</sub> par région (Europe 30, Golfe 20, Ukraine 30, Méditerranée 35 mm/h), appliquée au bilan GEO
     via <code>rain_margin_db</code> ; le LEO sert à forte élévation (pluie plus faible, indicative).
+    <b>LEO</b> : coquilles Walker ~Amazon Leo (28×28 @ 610 km, i 51,9°) et ~Starlink (40×20 @ 550 km, i 53°).
     <b>Antennes</b> : Manpack (G/T 5), Nano ~NanoBlade (10,8), Compact 0,6 m (15), Terminal 1,0 m (19 dB/K).
     Source : <code>POST /link</code> (GEO) · <code>POST /scenario</code> (LEO).
   </p>
@@ -205,14 +209,21 @@ async function evalGeo(base, sc, g){
           note:`él ≥ ${elMin.toFixed(0)}° · pluie ${rainMax.toFixed(1)} dB`};
 }
 
-async function evalLeo(base, sc){
+// Constellations LEO (coquilles Walker illustratives). gtTerm pris sur le scénario.
+function leoConfigs(sc){
+  return [
+    {label:"Amazon Leo · LEO Ka", color:"var(--leo)", gtTerm:sc.leo.gtTerm,
+     walker:{name:"AmazonLeo", altitude_km:610, inclination_deg:51.9, planes:28, sats_per_plane:28, phasing:1, eirp_dbw:38, gt_dbk:6}},
+    {label:"Starlink · LEO Ka",  color:"var(--star)", gtTerm:sc.leo.gtTerm,
+     walker:{name:"Starlink",   altitude_km:550, inclination_deg:53.0, planes:40, sats_per_plane:20, phasing:1, eirp_dbw:36, gt_dbk:5}},
+  ];
+}
+async function evalLeo(base, sc, cfg){
   let availMin=100, ho=0, thrs=[], els=[];
   for(const s of sc.sites){
     const d = await post(base, "/scenario", {
       site:{name:s.name, lat_deg:s.lat, lon_deg:s.lon, elevation_mask_deg:sc.mask},
-      terminal:{name:"term", gt_dbk:sc.leo.gtTerm},
-      tles:[], walker:{name:"AmazonLeo", altitude_km:610, inclination_deg:51.9, planes:28,
-              sats_per_plane:28, phasing:1, eirp_dbw:sc.leo.eirp, gt_dbk:sc.leo.gt},
+      terminal:{name:"term", gt_dbk:cfg.gtTerm}, tles:[], walker:cfg.walker,
       epoch_iso:"2026-06-26T12:00:00Z", duration_s:1800, step_s:30, handover_policy:"max_elevation",
     });
     availMin = Math.min(availMin, d.availability_pct); ho = Math.max(ho, d.handover_count);
@@ -221,14 +232,15 @@ async function evalLeo(base, sc){
   }
   const elMed = els.length ? median(els) : 0;
   const rain = rainAtten(sc.rain, 20, elMed, sc.sites[0].lat);
-  return {kind:"LEO", label:sc.leo.label, color:sc.leo.color, feasible:availMin>0,
+  return {kind:"LEO", label:cfg.label, color:cfg.color, feasible:availMin>0,
           avail:availMin, ho, thr: availMin>0 ? median(thrs) : 0,
           note:`${availMin.toFixed(0)}% · ${ho} HO · él~${elMed.toFixed(0)}° · pluie ~${rain.toFixed(1)} dB`};
 }
 
 function verdict(rows, sc){
   const geoOk = rows.filter(r=>r.kind==="GEO" && r.feasible);
-  const leo = rows.find(r=>r.kind==="LEO");
+  const leos = rows.filter(r=>r.kind==="LEO");
+  const leo = leos.reduce((a,b)=>(b.thr>a.thr?b:a), leos[0]);
   if(geoOk.length===0){
     return {cls:"b-bad", txt:`<b>GEO indisponible</b> — masque ${sc.mask}° au-dessus de l'élévation `+
       `(GEO ~${Math.max(...rows.filter(r=>r.kind==="GEO").map(r=>r.el)).toFixed(0)}°). `+
@@ -328,14 +340,14 @@ async function run(){
     const body = document.querySelector(`#sc${sc.n} .body`);
     try{
       const geoRows=[]; for(const g of sc.geo) geoRows.push(await evalGeo(base, sc, g));
-      const leoRow = await evalLeo(base, sc);
-      const rows = [...geoRows, leoRow];
+      const leoRows=[]; for(const cfg of leoConfigs(sc)) leoRows.push(await evalLeo(base, sc, cfg));
+      const rows = [...geoRows, ...leoRows];
       const v = verdict(rows, sc);
       body.innerHTML = chart(rows) +
         `<div class="verdict"><span class="badge ${v.cls}">${v.cls==="b-bad"?"LEO seul":v.cls==="b-warn"?"partiel":"OK"}</span>`+
         `<span class="vtext">${v.txt}</span></div>`;
       const sweep = await antennaSweep(base, sc);
-      return {sc, leoThr: leoRow.thr, sweep};
+      return {sc, leoThr: Math.max(...leoRows.map(r=>r.thr)), sweep};
     }catch(e){
       body.innerHTML = `<div class="err">Échec : ${e.message}\n(Vérifie l'URL de l'API et que le service répond.)</div>`;
       return {sc, leoThr:0, sweep:{masked:true, thrByAnt:[]}};

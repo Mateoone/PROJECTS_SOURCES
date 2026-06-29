@@ -37,6 +37,11 @@
   .pwrow{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--muted)}
   .pwrow b{margin-left:auto;color:var(--ink);font:600 13px ui-monospace,monospace}
   .pwrow .lat{color:var(--bad)} .pwrow .hi{color:var(--leo)}
+  /* mini-navigation (haut globe) */
+  #nav{position:absolute;left:50%;top:10px;transform:translateX(-50%);z-index:6;display:flex;gap:4px;
+       background:rgba(12,13,18,.82);border:1px solid var(--line);border-radius:10px;padding:4px;backdrop-filter:blur(4px)}
+  #nav a{font-size:12.5px;color:var(--muted);text-decoration:none;padding:5px 13px;border-radius:7px;font-weight:600}
+  #nav a.on{background:var(--accent);color:#fff} #nav a:hover{color:var(--ink)}
 
   /* fiche satellite (clic) */
   #satpanel{position:absolute;right:12px;top:12px;width:300px;z-index:6;background:rgba(10,14,16,.94);
@@ -108,7 +113,8 @@
     <div class="pwr">
       <div class="pwrow"><span class="sw" style="background:var(--x)"></span>Syracuse · GEO X<b id="p_x">—</b></div>
       <div class="pwrow"><span class="sw" style="background:var(--ka)"></span>Inmarsat GX · GEO Ka<b id="p_ka">—</b></div>
-      <div class="pwrow"><span class="sw" style="background:var(--leo)"></span><span id="p_leo_lbl">Kuiper · LEO</span><b id="p_leo">—</b></div>
+      <div class="pwrow"><span class="sw" style="background:var(--leo)"></span>Kuiper · LEO<b id="p_kuiper">—</b></div>
+      <div class="pwrow"><span class="sw" style="background:var(--star)"></span>Starlink · LEO<b id="p_starlink">—</b></div>
     </div>
     <p class="seg-label" id="p_note" style="margin-top:5px"></p>
 
@@ -119,6 +125,7 @@
 
   <div id="globe">
     <div id="cesium"></div>
+    <nav id="nav"><a href="coverage3d.html" class="on">Couverture 3D</a><a href="scenarios.html">4 scénarios</a></nav>
     <div id="satpanel">
       <div class="ph"><video id="sp_vid" muted loop playsinline preload="metadata" style="display:none"></video><img id="sp_img" alt="" style="display:none"><span class="noimg" id="sp_noimg">🛰</span>
         <div class="hd"><div class="nm" id="sp_name">—</div><div class="fm" id="sp_fam"></div></div>
@@ -295,17 +302,18 @@ async function selectSite(site,fly=true){
   if(fly) viewer.camera.flyTo({destination:Cesium.Cartesian3.fromDegrees(site.lon,site.lat,9.0e6),duration:1.2});
 
   // Puissance liaison (C/N reçu) par type — GEO : decroit avec la latitude (elevation + depointage)
-  $("p_leo_lbl").textContent = (LEOSET.key==="starlink"?"Starlink":"Kuiper")+" · LEO";
   $("p_note").textContent="C/N reçu, incl. dépointage faisceau global GEO : ↓ à haute latitude.";
   geoCN(bx.s,site,{up:8000,down:7500,eirp:52,gt:5,bw:40},7.0).then(v=>setPwr("p_x",v,bx.el<site.mask)).catch(()=>setPwr("p_x",null));
   geoCN(bk.s,site,{up:30000,down:20000,eirp:60,gt:10,bw:72},site.gt).then(v=>setPwr("p_ka",v,bk.el<site.mask)).catch(()=>setPwr("p_ka",null));
+  // LEO Kuiper + Starlink (C/N median, independant du service animé)
+  leoCN(site,TLE.kuiper).then(v=>setPwr("p_kuiper",v,v==null));
+  leoCN(site,TLE.starlink).then(v=>setPwr("p_starlink",v,v==null));
 
   try{
     const sc=await post("/scenario",{site:{name:site.name,lat_deg:site.lat,lon_deg:site.lon,elevation_mask_deg:site.mask},
       terminal:{name:"term",gt_dbk:site.gt},tles:LEOSET.tles,epoch_iso:C.start,duration_s:C.dur,step_s:C.stepe,handover_policy:"max_elevation"});
     servedArr=[]; const n=Math.floor(C.dur/C.stepe)+1; for(let k=0;k<n;k++){ const p=sc.series[k]; servedArr[k]=p&&p.served?p.served:null; }
     $("c_av").textContent=sc.availability_pct+" %"; $("c_ho").textContent=sc.handover_count; renderGraph(sc); renderHandovers(sc.handovers);
-    setPwr("p_leo", median(sc.series.filter(p=>p.served&&p.cn_total_db!=null).map(p=>p.cn_total_db)), sc.availability_pct<=0);
   }catch(e){ $("err").textContent="Moteur indisponible : "+e.message; }
   updateReadouts(curSec());
 }
@@ -314,6 +322,11 @@ async function geoCN(geoSat,site,p,termGt){
     terminal:{gt_dbk:termGt}, carrier:{uplink_mhz:p.up,downlink_mhz:p.down},
     satellite_geo:{name:"s",longitude_deg:geoSat.sub.lon,eirp_dbw:p.eirp,gt_dbk:p.gt,transponder_bw_mhz:p.bw,sfd_dbw_m2:-90}});
   return (d.cn_required_db+d.link_margin_db) - eirpRolloff(d.geometry.elevation_deg, geoSat.sub.h);
+}
+async function leoCN(site,tles){
+  try{ const d=await post("/scenario",{site:{name:site.name,lat_deg:site.lat,lon_deg:site.lon,elevation_mask_deg:site.mask},
+    terminal:{gt_dbk:site.gt}, tles, epoch_iso:C.start, duration_s:C.dur, step_s:C.stepe, handover_policy:"max_elevation"});
+    return median(d.series.filter(p=>p.served&&p.cn_total_db!=null).map(p=>p.cn_total_db)); }catch(e){ return null; }
 }
 
 let G=null;
