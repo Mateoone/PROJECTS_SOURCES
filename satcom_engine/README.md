@@ -92,7 +92,10 @@ Cloud Run déployé. Régler `CORS_ORIGINS` côté service sur l'origine du clie
   Inmarsat 5/GX5/6, 364 sats Amazon Kuiper). Affiche les empreintes de couverture GEO
   (cap d'élévation) et LEO, anime la constellation et le **satellite servant / les handovers**
   (via `/scenario` avec les TLE), avec le graphe de scénario synchronisé sous le globe.
-  Imagerie Natural Earth embarquée (aucun token Cesium ion requis).
+  Imagerie **Esri World Imagery** (satellite photoréel, sans token) ; renseigner `MAPBOX_TOKEN`
+  en tête de script pour l'imagerie Mapbox `satellite-streets-v12` identique aux autres apps.
+  Timeline moderne : lecture/pause, **coefficient de vitesse**, **sélecteur de date/heure**
+  (re-propagation), et graphe scrubbable (clic/glisser pour naviguer).
 
 ## Statut de validation
 

@@ -6,41 +6,61 @@
 <title>SATCOM — Couverture 3D (GEO X · GEO Ka · LEO)</title>
 <link href="https://cesium.com/downloads/cesiumjs/releases/1.119/Build/Cesium/Widgets/widgets.css" rel="stylesheet">
 <style>
-  :root{ --bg:#15151a; --panel:#1f1f27; --ink:#e9e8e2; --muted:#a3a199; --line:#33333c;
-         --accent:#7F77DD; --x:#378ADD; --ka:#7F77DD; --leo:#1D9E75; --ok:#1d9e75; --bad:#f0997b; --warn:#e3c46b; }
+  :root{ --bg:#0c0d12; --panel:#15161d; --panel2:#1b1d27; --ink:#ecebe4; --muted:#9b9aa3; --line:#2b2d39;
+         --accent:#7F77DD; --x:#46a0ff; --ka:#9b8cff; --leo:#22c993; --warn:#e3c46b; --bad:#f0997b; }
   *{box-sizing:border-box}
   html,body{margin:0;height:100%;background:var(--bg);color:var(--ink);
        font:14px/1.5 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;overflow:hidden}
-  #app{display:grid;grid-template-columns:300px 1fr;grid-template-rows:1fr 232px;height:100vh}
+  #app{display:grid;grid-template-columns:300px 1fr;grid-template-rows:1fr 308px;height:100vh}
   #side{grid-row:1/3;background:var(--panel);border-right:1px solid var(--line);padding:14px 15px;overflow-y:auto}
   #globe{position:relative}
   #cesium{position:absolute;inset:0}
-  #graph{grid-column:2;background:var(--panel);border-top:1px solid var(--line);padding:10px 14px;overflow:hidden}
   h1{font-size:15px;font-weight:600;margin:0 0 2px}
   .sub{color:var(--muted);font-size:11.5px;margin:0 0 12px}
   label{display:block;font-size:11px;color:var(--muted);margin:12px 0 4px;text-transform:uppercase;letter-spacing:.04em}
-  select{width:100%;padding:7px 8px;border:1px solid var(--line);border-radius:7px;background:#15151a;color:var(--ink);font:inherit;font-size:13px}
+  select{width:100%;padding:8px;border:1px solid var(--line);border-radius:8px;background:#0f1015;color:var(--ink);font:inherit;font-size:13px;color-scheme:dark}
   .seg-label{font-size:12px;color:var(--muted);margin:6px 0 0}
-  .toggles{display:flex;flex-direction:column;gap:7px;margin-top:6px}
+  .toggles{display:flex;flex-direction:column;gap:8px;margin-top:6px}
   .tg{display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer}
   .tg input{accent-color:var(--accent)}
   .sw{width:12px;height:12px;border-radius:3px;display:inline-block;flex:none}
-  .chips{display:flex;gap:8px;flex-wrap:wrap;margin:12px 0 0}
-  .chip{background:#15151a;border:1px solid var(--line);border-radius:8px;padding:6px 9px;font-size:11.5px;color:var(--muted);flex:1;min-width:84px}
+  .chips{display:flex;gap:8px;flex-wrap:wrap;margin:14px 0 0}
+  .chip{background:#0f1015;border:1px solid var(--line);border-radius:9px;padding:7px 9px;font-size:11px;color:var(--muted);flex:1;min-width:84px}
   .chip b{display:block;color:var(--ink);font-size:16px;font-weight:600;margin-top:2px}
   .now{margin-top:12px;font-size:12px;color:var(--muted)}
   .now b{color:var(--leo)}
-  .holog{margin-top:8px;max-height:150px;overflow-y:auto;font-size:11.5px;border-top:1px solid var(--line);padding-top:6px}
+  .holog{margin-top:8px;max-height:120px;overflow-y:auto;font-size:11.5px;border-top:1px solid var(--line);padding-top:6px}
   .holog div{padding:2px 0;color:var(--muted)}
   .holog .t{color:var(--ink);font-variant-numeric:tabular-nums}
   .err{color:var(--bad);font-size:12px;margin-top:8px;white-space:pre-wrap}
-  .gtitle{display:flex;justify-content:space-between;align-items:baseline;margin:0 0 2px}
-  .gtitle h2{font-size:12.5px;font-weight:600;margin:0}
-  .gtitle span{font-size:11px;color:var(--muted)}
+
+  /* ---- timeline moderne ---- */
+  #bottom{grid-column:2;background:linear-gradient(180deg,var(--panel2),var(--panel));
+          border-top:1px solid var(--line);padding:12px 18px 10px;display:flex;flex-direction:column;gap:10px;overflow:hidden}
+  #tbar{display:flex;align-items:center;gap:18px}
+  .play{width:44px;height:44px;border-radius:50%;border:0;background:var(--accent);cursor:pointer;flex:none;
+        display:flex;align-items:center;justify-content:center;box-shadow:0 2px 12px rgba(127,119,221,.5);transition:transform .1s,filter .1s}
+  .play:hover{transform:scale(1.07);filter:brightness(1.08)}
+  .play svg{width:20px;height:20px;fill:#fff}
+  .tclock{min-width:210px}
+  .tclock .t{font:600 18px/1 ui-monospace,SFMono-Regular,Menlo,monospace;color:var(--ink);letter-spacing:.5px}
+  .tclock .d{font-size:10.5px;color:var(--muted);letter-spacing:.08em;margin-top:4px;text-transform:uppercase}
+  .ctl{display:flex;align-items:center;gap:10px}
+  .ctl .cap{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em}
+  .spd{width:150px;accent-color:var(--accent)}
+  .spdv{font:600 14px ui-monospace,monospace;color:var(--accent);min-width:44px;text-align:right}
+  .when{margin-left:auto;display:flex;align-items:center;gap:8px}
+  .when .cap{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em}
+  .when input{background:#0f1015;border:1px solid var(--line);border-radius:8px;color:var(--ink);
+              font:inherit;font-size:12.5px;padding:7px 9px;color-scheme:dark}
+  .when input:focus{outline:none;border-color:var(--accent)}
+  .busy{font-size:12px;color:var(--warn)}
+  .gwrap{position:relative}
+  #plot{cursor:ew-resize}
   svg{width:100%;height:auto;display:block}
-  .legend{display:flex;gap:14px;flex-wrap:wrap;font-size:11px;color:var(--muted);margin-top:4px}
+  .legend{display:flex;gap:14px;flex-wrap:wrap;font-size:11px;color:var(--muted)}
   .legend span{display:inline-flex;align-items:center;gap:5px}
-  .cesium-viewer-bottom{display:none}
+  .cesium-credit-container,.cesium-widget-credits{display:none!important}
 </style>
 </head>
 <body>
@@ -58,7 +78,7 @@
       <label class="tg"><input type="checkbox" id="t_x" checked><span class="sw" style="background:var(--x)"></span>Syracuse · GEO X + couverture</label>
       <label class="tg"><input type="checkbox" id="t_ka" checked><span class="sw" style="background:var(--ka)"></span>Inmarsat GX · GEO Ka + couverture</label>
       <label class="tg"><input type="checkbox" id="t_leo" checked><span class="sw" style="background:var(--leo)"></span>Kuiper · LEO (constellation)</label>
-      <label class="tg"><input type="checkbox" id="t_beam" checked><span class="sw" style="background:#e3c46b"></span>Faisceau servant + handover</label>
+      <label class="tg"><input type="checkbox" id="t_beam" checked><span class="sw" style="background:var(--warn)"></span>Faisceau servant + handover</label>
     </div>
 
     <div class="chips">
@@ -73,9 +93,23 @@
 
   <div id="globe"><div id="cesium"></div></div>
 
-  <div id="graph">
-    <div class="gtitle"><h2>Scenario LEO — satellite servant, elevation &amp; handovers</h2><span id="g_meta"></span></div>
-    <div id="plot"></div>
+  <div id="bottom">
+    <div id="tbar">
+      <button class="play" id="play" aria-label="Lecture / pause">
+        <svg id="playicon" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+      </button>
+      <div class="tclock"><div class="t" id="t_clock">—</div><div class="d" id="t_date">scenario LEO · fenetre 30 min</div></div>
+      <div class="ctl"><span class="cap">Vitesse</span>
+        <input class="spd" type="range" id="spd" min="1" max="200" step="1" value="40">
+        <span class="spdv" id="spd_v">×40</span></div>
+      <div class="when">
+        <span class="cap">Epoque</span>
+        <input type="date" id="d_date">
+        <input type="time" id="d_time" step="60">
+        <span class="busy" id="busy"></span>
+      </div>
+    </div>
+    <div class="gwrap"><div id="plot"></div></div>
     <div class="legend" id="g_legend"></div>
   </div>
 </div>
@@ -88,28 +122,49 @@ const TLE   = {"syracuse": [{"name": "SYRACUSE 4A", "line1": "1 49333U 21095B   
 const SITES = [{"name": "Paris", "lat": 48.85, "lon": 2.35, "mask": 10, "gt": 10.8, "label": "Europe — segment fixe / mobile (CCA X)"}, {"name": "Kiev", "lat": 50.45, "lon": 30.52, "mask": 10, "gt": 10.8, "label": "Europe — extremite de route Paris→Kiev"}, {"name": "Abu Dhabi", "lat": 24.45, "lon": 54.3, "mask": 10, "gt": 10.8, "label": "Golfe — segment mobile"}, {"name": "Tehran", "lat": 35.69, "lon": 51.39, "mask": 10, "gt": 10.8, "label": "Golfe — extremite de route"}, {"name": "Kharkiv", "lat": 49.99, "lon": 36.23, "mask": 30, "gt": 8.0, "label": "Ukraine — grappe vehicules, urbain dense (masque 30°)"}, {"name": "USV Est-Med", "lat": 34.0, "lon": 33.0, "mask": 7, "gt": 9.5, "label": "Mediterranee orientale — USV maritime, ciel ouvert"}];
 const C     = {"start": "2026-06-28T21:00:00Z", "dur": 1800, "stepv": 20, "stepe": 30};
 const Re = 6378.137;
-const COL = { X:"#378ADD", Ka:"#7F77DD", LEO:"#1D9E75", BEAM:"#e3c46b" };
+const COL = { X:"#46a0ff", Ka:"#9b8cff", LEO:"#22c993", BEAM:"#e3c46b" };
 
-// ---------- Cesium init (sans token : imagerie Natural Earth II embarquee) ----------
+// Colle ici ton token Mapbox (VITE_MAPBOX_TOKEN) pour l'imagerie satellite-streets-v12
+// identique a tes autres apps. Sinon : Esri World Imagery (satellite, sans token).
+const MAPBOX_TOKEN = "";
+
+// ---------- Cesium init ----------
+let baseImagery;
+if (MAPBOX_TOKEN) {
+  baseImagery = new Cesium.MapboxStyleImageryProvider({
+    username:"mapbox", styleId:"satellite-streets-v12", accessToken:MAPBOX_TOKEN,
+    scaleFactor:true, credit:"© Mapbox © OpenStreetMap" });
+} else {
+  // Esri World Imagery (satellite photoreel, sans token) — tuiles directes.
+  baseImagery = new Cesium.UrlTemplateImageryProvider({
+    url:"https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
+    maximumLevel:18, credit:"Esri, Maxar, Earthstar Geographics" });
+}
+const baseLayer = new Cesium.ImageryLayer(baseImagery);
 const viewer = new Cesium.Viewer("cesium", {
-  baseLayer: Cesium.ImageryLayer.fromProviderAsync(
-     Cesium.TileMapServiceImageryProvider.fromUrl(
-       Cesium.buildModuleUrl("Assets/Textures/NaturalEarthII"))),
-  baseLayerPicker:false, geocoder:false, homeButton:false, navigationHelpButton:false,
+  baseLayer, baseLayerPicker:false, geocoder:false, homeButton:false, navigationHelpButton:false,
   sceneModePicker:false, fullscreenButton:false, infoBox:false, selectionIndicator:false,
-  animation:true, timeline:true, shouldAnimate:true,
+  animation:false, timeline:false, shouldAnimate:false,
 });
 viewer.scene.globe.enableLighting = false;
-viewer.scene.backgroundColor = Cesium.Color.fromCssColorString("#0a0a0f");
+viewer.scene.globe.baseColor = Cesium.Color.fromCssColorString("#03070d");
+viewer.scene.backgroundColor = Cesium.Color.fromCssColorString("#05070d");
+viewer.scene.skyAtmosphere.show = true;
+viewer.cesiumWidget.creditContainer.style.display = "none";
+viewer.camera.flyTo({ destination:Cesium.Cartesian3.fromDegrees(20, 25, 4.2e7), duration:0 });
 
-const start = Cesium.JulianDate.fromIso8601(C.start);
-const stop  = Cesium.JulianDate.addSeconds(start, C.dur, new Cesium.JulianDate());
-viewer.clock.startTime   = start.clone();
-viewer.clock.stopTime    = stop.clone();
-viewer.clock.currentTime = start.clone();
-viewer.clock.clockRange  = Cesium.ClockRange.LOOP_STOP;
-viewer.clock.multiplier  = 40;
-viewer.timeline.zoomTo(start, stop);
+let start = Cesium.JulianDate.fromIso8601(C.start);
+let stop  = Cesium.JulianDate.addSeconds(start, C.dur, new Cesium.JulianDate());
+let startMs = Date.parse(C.start);
+function configClock(){
+  viewer.clock.startTime   = start.clone();
+  viewer.clock.stopTime    = stop.clone();
+  viewer.clock.currentTime = start.clone();
+  viewer.clock.clockRange  = Cesium.ClockRange.LOOP_STOP;
+  viewer.clock.multiplier  = +document.getElementById("spd").value;
+  viewer.clock.shouldAnimate = false;
+}
+configClock();
 
 // ---------- helpers ----------
 const jdAt = s => Cesium.JulianDate.addSeconds(start, s, new Cesium.JulianDate());
@@ -164,48 +219,48 @@ const leoByName = {};
 
 function geoPoint(s){
   s.prop = sampled(s.rec);
-  const c0 = s.prop.getValue(start);
-  s.sub = carto(c0);
+  s.sub = carto(s.prop.getValue(start));
   s.entity = viewer.entities.add({
     position: s.prop,
-    point: { pixelSize:8, color:Cesium.Color.fromCssColorString(COL[s.band]),
+    point: { pixelSize:9, color:Cesium.Color.fromCssColorString(COL[s.band]),
              outlineColor:Cesium.Color.WHITE, outlineWidth:1 },
-    label: { text:s.name.replace("INMARSAT ","GX "), font:"11px sans-serif",
+    label: { text:s.name.replace("INMARSAT ","GX "), font:"600 11px sans-serif",
              fillColor:Cesium.Color.WHITE, style:Cesium.LabelStyle.FILL_AND_OUTLINE,
-             outlineColor:Cesium.Color.BLACK, outlineWidth:2,
+             outlineColor:Cesium.Color.BLACK, outlineWidth:3,
              pixelOffset:new Cesium.Cartesian2(0,-16), scale:0.85,
-             distanceDisplayCondition:new Cesium.DistanceDisplayCondition(0, 8e7) }
+             distanceDisplayCondition:new Cesium.DistanceDisplayCondition(0, 1e8) }
   });
 }
 SYR.forEach(geoPoint);
 GX.forEach(geoPoint);
-
 LEO.forEach(s => {
   s.prop = sampled(s.rec);
   s.entity = viewer.entities.add({
     position: s.prop,
-    point: { pixelSize:3, color:Cesium.Color.fromCssColorString(COL.LEO).withAlpha(0.8) }
+    point: { pixelSize:3.5, color:Cesium.Color.fromCssColorString(COL.LEO).withAlpha(0.85) }
   });
   leoByName[s.name] = s;
 });
 
-// ---------- coverage caps (GEO) + serving (LEO) ----------
+// ---------- coverage caps + serving ----------
 const capX = viewer.entities.add({ polygon:{ hierarchy:new Cesium.PolygonHierarchy([]),
-  material:Cesium.Color.fromCssColorString(COL.X).withAlpha(0.16),
-  outline:true, outlineColor:Cesium.Color.fromCssColorString(COL.X).withAlpha(0.7),
-  height:0, perPositionHeight:false } });
+  material:Cesium.Color.fromCssColorString(COL.X).withAlpha(0.14),
+  outline:true, outlineColor:Cesium.Color.fromCssColorString(COL.X).withAlpha(0.75), height:0 } });
 const capKa = viewer.entities.add({ polygon:{ hierarchy:new Cesium.PolygonHierarchy([]),
-  material:Cesium.Color.fromCssColorString(COL.Ka).withAlpha(0.16),
-  outline:true, outlineColor:Cesium.Color.fromCssColorString(COL.Ka).withAlpha(0.7),
-  height:0 } });
+  material:Cesium.Color.fromCssColorString(COL.Ka).withAlpha(0.14),
+  outline:true, outlineColor:Cesium.Color.fromCssColorString(COL.Ka).withAlpha(0.75), height:0 } });
 
 let activeSite = null, servedArr = [], maskNow = 10;
+const curSec = () => Cesium.JulianDate.secondsDifference(viewer.clock.currentTime, start);
+function servedNameAt(tSec){
+  if(!servedArr.length) return null;
+  const k = Math.max(0, Math.min(servedArr.length-1, Math.floor(tSec / C.stepe)));
+  return servedArr[k];
+}
 
-// LEO serving coverage (suit le satellite servant)
 const leoCap = viewer.entities.add({ polygon:{
   hierarchy:new Cesium.CallbackProperty(()=>{
-    const nm = servedNameAt(curSec());
-    const s = nm && leoByName[nm];
+    const nm = servedNameAt(curSec()); const s = nm && leoByName[nm];
     if(!s) return new Cesium.PolygonHierarchy([]);
     const c = s.prop.getValue(viewer.clock.currentTime); if(!c) return new Cesium.PolygonHierarchy([]);
     const sp = carto(c);
@@ -214,34 +269,23 @@ const leoCap = viewer.entities.add({ polygon:{
   material:Cesium.Color.fromCssColorString(COL.LEO).withAlpha(0.22),
   outline:true, outlineColor:Cesium.Color.fromCssColorString(COL.LEO).withAlpha(0.9), height:0 } });
 
-// faisceau site -> satellite servant
 let siteCart = null;
 const beam = viewer.entities.add({ polyline:{
   positions:new Cesium.CallbackProperty(()=>{
     if(!siteCart) return [];
-    const nm = servedNameAt(curSec());
-    const s = nm && leoByName[nm];
+    const nm = servedNameAt(curSec()); const s = nm && leoByName[nm];
     if(!s) return [];
     const c = s.prop.getValue(viewer.clock.currentTime); if(!c) return [];
     return [siteCart, c];
   }, false),
-  width:2.5, material:new Cesium.PolylineGlowMaterialProperty({ glowPower:0.2,
+  width:3, material:new Cesium.PolylineGlowMaterialProperty({ glowPower:0.25,
      color:Cesium.Color.fromCssColorString(COL.BEAM) }) } });
 
 const siteEnt = viewer.entities.add({
   position:new Cesium.CallbackProperty(()=> siteCart || Cesium.Cartesian3.ZERO, false),
-  point:{ pixelSize:9, color:Cesium.Color.fromCssColorString("#ffffff"),
-          outlineColor:Cesium.Color.fromCssColorString(COL.BEAM), outlineWidth:2 },
-  label:{ font:"12px sans-serif", fillColor:Cesium.Color.WHITE,
-          style:Cesium.LabelStyle.FILL_AND_OUTLINE, outlineColor:Cesium.Color.BLACK, outlineWidth:2,
-          pixelOffset:new Cesium.Cartesian2(0,-18) } });
-
-const curSec = () => Cesium.JulianDate.secondsDifference(viewer.clock.currentTime, start);
-function servedNameAt(tSec){
-  if(!servedArr.length) return null;
-  const k = Math.max(0, Math.min(servedArr.length-1, Math.floor(tSec / C.stepe)));
-  return servedArr[k];
-}
+  point:{ pixelSize:10, color:Cesium.Color.WHITE, outlineColor:Cesium.Color.fromCssColorString(COL.BEAM), outlineWidth:2 },
+  label:{ font:"600 12px sans-serif", fillColor:Cesium.Color.WHITE, style:Cesium.LabelStyle.FILL_AND_OUTLINE,
+          outlineColor:Cesium.Color.BLACK, outlineWidth:3, pixelOffset:new Cesium.Cartesian2(0,-18) } });
 
 // ---------- engine + rendering ----------
 async function post(path, body){
@@ -255,33 +299,26 @@ function bestGeo(list, site){
     if(!best || el>best.el) best={s, el}; }
   return best;
 }
-let gx_default = { up:30000, down:20000, eirp:60, gt:10, bw:72 };
-let syr_default= { up:8000,  down:7500,  eirp:52, gt:5,  bw:40 };
-
-async function selectSite(site){
+async function selectSite(site, fly=true){
   activeSite = site; maskNow = site.mask;
   document.getElementById("seglabel").textContent = site.label;
   document.getElementById("err").textContent = "";
   siteCart = Cesium.Cartesian3.fromDegrees(site.lon, site.lat, 0);
   siteEnt.label.text = site.name;
 
-  // caps GEO : meilleur Syracuse (X) et meilleur GX (Ka)
   const bx = bestGeo(SYR, site), bk = bestGeo(GX, site);
-  const capAngX  = centralAngleDeg(bx.s.sub.h, site.mask);
-  const capAngKa = centralAngleDeg(bk.s.sub.h, site.mask);
-  capX.polygon.hierarchy  = new Cesium.PolygonHierarchy(ring(bx.s.sub.lat, bx.s.sub.lon, capAngX));
-  capKa.polygon.hierarchy = new Cesium.PolygonHierarchy(ring(bk.s.sub.lat, bk.s.sub.lon, capAngKa));
+  capX.polygon.hierarchy  = new Cesium.PolygonHierarchy(ring(bx.s.sub.lat, bx.s.sub.lon, centralAngleDeg(bx.s.sub.h, site.mask)));
+  capKa.polygon.hierarchy = new Cesium.PolygonHierarchy(ring(bk.s.sub.lat, bk.s.sub.lon, centralAngleDeg(bk.s.sub.h, site.mask)));
   document.getElementById("c_geo").innerHTML =
-    `${bk.el>=site.mask?'<span style="color:var(--ka)">GX '+bk.el.toFixed(0)+'°</span>':'<span style="color:var(--bad)">GX masque</span>'}`;
+    bk.el>=site.mask ? '<span style="color:var(--ka)">GX '+bk.el.toFixed(0)+'°</span>'
+                     : '<span style="color:var(--bad)">GX masque</span>';
 
-  viewer.camera.flyTo({ destination:Cesium.Cartesian3.fromDegrees(site.lon, site.lat, 9.0e6), duration:1.2 });
+  if(fly) viewer.camera.flyTo({ destination:Cesium.Cartesian3.fromDegrees(site.lon, site.lat, 9.0e6), duration:1.2 });
 
-  // moteur : scenario LEO (TLE reels) + liaisons GEO
   try{
     const sc = await post("/scenario", {
       site:{ name:site.name, lat_deg:site.lat, lon_deg:site.lon, elevation_mask_deg:site.mask },
-      terminal:{ name:"term", gt_dbk:site.gt },
-      tles: TLE.kuiper,
+      terminal:{ name:"term", gt_dbk:site.gt }, tles: TLE.kuiper,
       epoch_iso: C.start, duration_s:C.dur, step_s:C.stepe, handover_policy:"max_elevation",
     });
     servedArr = [];
@@ -294,84 +331,152 @@ async function selectSite(site){
   }catch(e){
     document.getElementById("err").textContent = "Moteur indisponible : " + e.message;
   }
+  updateReadouts(curSec());
 }
 
-// ----- graphe de scenario (ruban servant + elevation + handovers) -----
 let G = null;
 function renderGraph(d){
   const S=d.series, dur=d.duration_s;
-  const W=980, H=176, m={l:42,r:12,t:12,b:24};
+  const W=980, H=178, m={l:42,r:12,t:12,b:24};
   const pw=W-m.l-m.r, ribY=m.t, ribH=26, elY=ribY+ribH+18, elH=H-elY-m.b;
   const X=t=> m.l + (t/dur)*pw;
   const Yel=e=> elY+elH - (Math.max(0,Math.min(90,e))/90)*elH;
-  G = {X, dur, ribY, elY, elH, m, W, H};
-  const col = name => { if(!name) return "#3a3a44"; let h=0; for(const c of name) h=(h*31+c.charCodeAt(0))%360; return `hsl(${h} 58% 55%)`; };
+  G = {X, dur, pw, ribY, elY, elH, m, W, H};
+  const col = name => { if(!name) return "#3a3a44"; let h=0; for(const c of name) h=(h*31+c.charCodeAt(0))%360; return `hsl(${h} 62% 58%)`; };
 
   let svg=`<svg viewBox="0 0 ${W} ${H}">`;
   svg+=`<line x1="${m.l}" y1="${elY+elH}" x2="${W-m.r}" y2="${elY+elH}" stroke="#3a3a44"/>`;
-  for(const e of [0,30,60,90]) svg+=`<line x1="${m.l}" y1="${Yel(e)}" x2="${W-m.r}" y2="${Yel(e)}" stroke="#2c2c34" stroke-dasharray="2 4"/><text x="${m.l-7}" y="${Yel(e)+4}" text-anchor="end" font-size="10" fill="#a3a199">${e}°</text>`;
+  for(const e of [0,30,60,90]) svg+=`<line x1="${m.l}" y1="${Yel(e)}" x2="${W-m.r}" y2="${Yel(e)}" stroke="#2c2c34" stroke-dasharray="2 4"/><text x="${m.l-7}" y="${Yel(e)+4}" text-anchor="end" font-size="10" fill="#9b9aa3">${e}°</text>`;
   const mask=activeSite.mask;
   svg+=`<line x1="${m.l}" y1="${Yel(mask)}" x2="${W-m.r}" y2="${Yel(mask)}" stroke="#f0997b" stroke-dasharray="5 3"/><text x="${W-m.r}" y="${Yel(mask)-3}" text-anchor="end" font-size="10" fill="#f0997b">masque ${mask}°</text>`;
-  for(let t=0;t<=dur;t+=300) svg+=`<text x="${X(t)}" y="${elY+elH+16}" text-anchor="middle" font-size="10" fill="#a3a199">${t/60}'</text>`;
+  for(let t=0;t<=dur;t+=300){ const lab=new Date(startMs+t*1000); const hh=String(lab.getUTCHours()).padStart(2,"0")+":"+String(lab.getUTCMinutes()).padStart(2,"0");
+    svg+=`<text x="${X(t)}" y="${elY+elH+16}" text-anchor="middle" font-size="10" fill="#9b9aa3">${hh}</text>`; }
 
-  // ruban servant
   let i=0; const served=new Set();
   while(i<S.length){
     let j=i; while(j+1<S.length && S[j+1].served===S[i].served) j++;
     const t0=S[i].t_s, t1=(j+1<S.length?S[j+1].t_s:dur), name=S[i].served;
     if(name) served.add(name);
-    svg+=`<rect x="${X(t0)}" y="${ribY}" width="${Math.max(0,X(t1)-X(t0))}" height="${ribH}" fill="${col(name)}" opacity="${name?0.92:0.25}"/>`;
+    svg+=`<rect x="${X(t0)}" y="${ribY}" width="${Math.max(0,X(t1)-X(t0))}" height="${ribH}" fill="${col(name)}" opacity="${name?0.92:0.25}" rx="2"/>`;
     i=j+1;
   }
-  svg+=`<text x="${m.l}" y="${ribY-3}" font-size="10" fill="#a3a199">Satellite servant</text>`;
-  for(const h of d.handovers) svg+=`<line x1="${X(h.t_s)}" y1="${ribY}" x2="${X(h.t_s)}" y2="${elY+elH}" stroke="#e9e8e2" stroke-width="0.5" stroke-dasharray="2 3" opacity="0.45"/>`;
+  svg+=`<text x="${m.l}" y="${ribY-3}" font-size="10" fill="#9b9aa3">Satellite servant</text>`;
+  for(const h of d.handovers) svg+=`<line x1="${X(h.t_s)}" y1="${ribY}" x2="${X(h.t_s)}" y2="${elY+elH}" stroke="#ecebe4" stroke-width="0.5" stroke-dasharray="2 3" opacity="0.45"/>`;
   const pts=S.filter(p=>p.served).map(p=>`${X(p.t_s)},${Yel(p.elevation_deg)}`).join(" ");
-  svg+=`<polyline points="${pts}" fill="none" stroke="#7F77DD" stroke-width="2"/>`;
-  svg+=`<line id="cursor" x1="${m.l}" y1="${ribY}" x2="${m.l}" y2="${elY+elH}" stroke="#e3c46b" stroke-width="1.5"/>`;
+  svg+=`<polyline points="${pts}" fill="none" stroke="#9b8cff" stroke-width="2"/>`;
+  svg+=`<line id="cursor" x1="${m.l}" y1="${ribY-8}" x2="${m.l}" y2="${elY+elH}" stroke="#e3c46b" stroke-width="2"/>`;
+  svg+=`<circle id="cursordot" cx="${m.l}" cy="${ribY-8}" r="4" fill="#e3c46b"/>`;
   svg+=`</svg>`;
   document.getElementById("plot").innerHTML=svg;
-  document.getElementById("g_meta").textContent =
-     `${d.n_satellites} sats Kuiper · pas ${d.step_s}s · ${(dur/60)}min`;
   document.getElementById("g_legend").innerHTML =
-     `<span><i class="sw" style="background:#7F77DD"></i>elevation servant</span>`+
+     `<span><i class="sw" style="background:#9b8cff"></i>elevation servant</span>`+
      `<span><i class="sw" style="background:#f0997b"></i>masque</span>`+
-     `<span><i class="sw" style="background:#e3c46b"></i>instant courant</span>`+
-     `<span>${served.size} satellites servants sur la fenetre</span>`;
+     `<span><i class="sw" style="background:#e3c46b"></i>instant courant — clique/glisse pour naviguer</span>`+
+     `<span>${d.n_satellites} sats Kuiper · ${served.size} servants sur la fenetre</span>`;
 }
 function renderHandovers(hs){
   const el=document.getElementById("holog");
   if(!hs.length){ el.innerHTML='<div>Aucun handover (couverture continue par 1 satellite).</div>'; return; }
   el.innerHTML = `<div style="color:var(--ink);margin-bottom:3px">${hs.length} handovers</div>` +
-    hs.map(h=>`<div><span class="t">t+${(h.t_s/60).toFixed(1)}'</span> ${h.from.replace('KUIPER-','K')} → ${h.to.replace('KUIPER-','K')}</div>`).join("");
+    hs.map(h=>{ const lab=new Date(startMs+h.t_s*1000); const hh=String(lab.getUTCHours()).padStart(2,"0")+":"+String(lab.getUTCMinutes()).padStart(2,"0");
+      return `<div><span class="t">${hh}</span> ${h.from.replace("KUIPER-","K")} → ${h.to.replace("KUIPER-","K")}</div>`; }).join("");
 }
 
-// ----- curseur temps synchronise -----
-viewer.clock.onTick.addEventListener(()=>{
-  if(!G) return;
-  const t=Math.max(0,Math.min(G.dur, curSec()));
-  const c=document.getElementById("cursor");
-  if(c){ const x=G.X(t); c.setAttribute("x1",x); c.setAttribute("x2",x); }
+// ---------- readouts + timeline controls ----------
+function fmtClock(t){
+  const dd=new Date(startMs + t*1000);
+  const p=n=>String(n).padStart(2,"0");
+  return { hms:`${p(dd.getUTCHours())}:${p(dd.getUTCMinutes())}:${p(dd.getUTCSeconds())}`,
+           ymd:`${dd.getUTCFullYear()}-${p(dd.getUTCMonth()+1)}-${p(dd.getUTCDate())} UTC` };
+}
+function updateReadouts(t){
+  t=Math.max(0,Math.min(C.dur,t));
+  const f=fmtClock(t);
+  document.getElementById("t_clock").textContent=f.hms;
+  document.getElementById("t_date").textContent=f.ymd;
+  if(G){ const x=G.X(t);
+    const c=document.getElementById("cursor"), dot=document.getElementById("cursordot");
+    if(c){ c.setAttribute("x1",x); c.setAttribute("x2",x); } if(dot) dot.setAttribute("cx",x); }
   const nm=servedNameAt(t);
   document.getElementById("now_serv").textContent = nm ? nm.replace("KUIPER-","Kuiper ") : "— (aucune visibilite)";
   const s=nm && leoByName[nm];
   if(s && activeSite){ const cc=s.prop.getValue(viewer.clock.currentTime);
-    if(cc){ const sp=carto(cc); const el=elevToGeo(activeSite.lat,activeSite.lon, sp.lat,sp.lon, sp.h);
-      document.getElementById("now_el").textContent = `· el ${el.toFixed(0)}°`; } }
-  else document.getElementById("now_el").textContent = "";
-});
+    if(cc){ const sp=carto(cc); document.getElementById("now_el").textContent="· el "+elevToGeo(activeSite.lat,activeSite.lon,sp.lat,sp.lon,sp.h).toFixed(0)+"°"; } }
+  else document.getElementById("now_el").textContent="";
+}
+const ICON_PLAY='<path d="M8 5v14l11-7z"/>', ICON_PAUSE='<path d="M6 5h4v14H6zM14 5h4v14h-4z"/>';
+function updatePlayIcon(){ document.getElementById("playicon").innerHTML = viewer.clock.shouldAnimate ? ICON_PAUSE : ICON_PLAY; }
+document.getElementById("play").onclick = ()=>{
+  if(!viewer.clock.shouldAnimate && curSec()>=C.dur-0.5)
+    viewer.clock.currentTime = start.clone();           // rejouer depuis le debut
+  viewer.clock.shouldAnimate = !viewer.clock.shouldAnimate;
+  updatePlayIcon();
+};
+document.getElementById("spd").oninput = e=>{
+  viewer.clock.multiplier = +e.target.value;
+  document.getElementById("spd_v").textContent = "×"+e.target.value;
+};
+viewer.clock.onTick.addEventListener(()=>{ updateReadouts(curSec());
+  if(!viewer.clock.shouldAnimate) updatePlayIcon(); });
 
-// ----- toggles -----
+// scrubbing sur le graphe
+let scrubbing=false;
+function seekFromEvent(ev){
+  const svg=document.querySelector("#plot svg"); if(!svg||!G) return;
+  const r=svg.getBoundingClientRect();
+  const xu=(ev.clientX-r.left)*(G.W/r.width);
+  const t=Math.max(0, Math.min(C.dur, (xu-G.m.l)/G.pw*C.dur));
+  viewer.clock.currentTime=Cesium.JulianDate.addSeconds(start,t,new Cesium.JulianDate());
+  updateReadouts(t);
+}
+const plot=document.getElementById("plot");
+plot.addEventListener("pointerdown",e=>{scrubbing=true;seekFromEvent(e);});
+window.addEventListener("pointermove",e=>{if(scrubbing)seekFromEvent(e);});
+window.addEventListener("pointerup",()=>scrubbing=false);
+
+// ---------- selection de date / epoque ----------
+function resampleAll(){
+  [...SYR,...GX,...LEO].forEach(s=>{ s.prop=sampled(s.rec); s.entity.position=s.prop; });
+  [...SYR,...GX].forEach(s=>{ s.sub=carto(s.prop.getValue(start)); });
+}
+async function setWindow(iso){
+  const busy=document.getElementById("busy"); busy.textContent="Calcul…";
+  await new Promise(r=>setTimeout(r,20));
+  C.start=iso; startMs=Date.parse(iso);
+  start=Cesium.JulianDate.fromIso8601(iso);
+  stop=Cesium.JulianDate.addSeconds(start,C.dur,new Cesium.JulianDate());
+  configClock(); updatePlayIcon();
+  resampleAll();
+  await selectSite(activeSite, false);
+  busy.textContent="";
+}
+function applyDate(){
+  const d=document.getElementById("d_date").value, t=document.getElementById("d_time").value;
+  if(!d||!t) return;
+  setWindow(`${d}T${t}:00Z`);
+}
+document.getElementById("d_date").onchange=applyDate;
+document.getElementById("d_time").onchange=applyDate;
+
+// ---------- toggles ----------
 const setShow=(arr,v)=>arr.forEach(s=>s.entity.show=v);
 document.getElementById("t_x").onchange  = e=>{ setShow(SYR,e.target.checked); capX.show=e.target.checked; };
 document.getElementById("t_ka").onchange = e=>{ setShow(GX,e.target.checked); capKa.show=e.target.checked; };
 document.getElementById("t_leo").onchange= e=>{ setShow(LEO,e.target.checked); leoCap.show=e.target.checked; };
 document.getElementById("t_beam").onchange=e=>{ beam.show=e.target.checked; };
 
-// ----- site selector -----
+// ---------- init ----------
+(function initDateInputs(){
+  const d=new Date(startMs); const p=n=>String(n).padStart(2,"0");
+  document.getElementById("d_date").value=`${d.getUTCFullYear()}-${p(d.getUTCMonth()+1)}-${p(d.getUTCDate())}`;
+  document.getElementById("d_time").value=`${p(d.getUTCHours())}:${p(d.getUTCMinutes())}`;
+})();
+updatePlayIcon();
 const sel=document.getElementById("site");
 SITES.forEach((s,i)=> sel.add(new Option(s.name+" — "+s.label.split(" — ")[0], i)));
 sel.onchange = ()=> selectSite(SITES[+sel.value]);
-sel.value = "1"; selectSite(SITES[1]); // Kiev par defaut
+sel.value="1"; selectSite(SITES[1]);
+if(location.hash==="#play"){ viewer.clock.shouldAnimate=true; updatePlayIcon(); }
 </script>
 </body>
 </html>
