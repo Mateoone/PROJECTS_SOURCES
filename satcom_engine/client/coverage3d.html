@@ -239,7 +239,9 @@ SYR.forEach(geoPoint); GX.forEach(geoPoint);
 
 function buildLeo(arr,colorHex){ const byName={};
   arr.forEach(s=>{ s.prop=sampled(s.rec);
-    s.entity=viewer.entities.add({position:s.prop,point:{pixelSize:3.5,color:Cesium.Color.fromCssColorString(colorHex).withAlpha(0.85)}});
+    s.entity=viewer.entities.add({position:s.prop,point:{pixelSize:4.5,color:Cesium.Color.fromCssColorString(colorHex),
+      outlineColor:Cesium.Color.WHITE.withAlpha(0.4),outlineWidth:1,
+      scaleByDistance:new Cesium.NearFarScalar(7e6,1.35,4e7,0.65)}});
     satByEntity.set(s.entity,s); byName[s.name]=s; });
   return byName; }
 const KUI_byName=buildLeo(KUI,COL.LEO);
@@ -250,17 +252,25 @@ function ensureStarlink(){ if(starBuilt) return; STAR_byName=buildLeo(STAR,COL.S
 let LEOSET={key:"kuiper",arr:KUI,byName:KUI_byName,tles:TLE.kuiper};
 
 // ---------- couvertures + servant ----------
-function capEnt(c){ return viewer.entities.add({polygon:{hierarchy:new Cesium.PolygonHierarchy([]),
-  material:Cesium.Color.fromCssColorString(c).withAlpha(0.14),outline:true,outlineColor:Cesium.Color.fromCssColorString(c).withAlpha(0.75),height:0}}); }
-const capX=capEnt(COL.X), capKa=capEnt(COL.Ka);
+// Couverture : remplissage tres transparent (on voit la Terre + les LEO au travers)
+// + bord lumineux facon Fresnel (PolylineGlow clampe au sol).
+function makeCap(c){ const col=Cesium.Color.fromCssColorString(c);
+  const fill=viewer.entities.add({polygon:{hierarchy:new Cesium.PolygonHierarchy([]), material:col.withAlpha(0.06), height:0}});
+  const rim=viewer.entities.add({polyline:{positions:[], width:3, clampToGround:true,
+    material:new Cesium.PolylineGlowMaterialProperty({glowPower:0.35, color:col.withAlpha(0.95)})}});
+  return { setRing(p){ fill.polygon.hierarchy=new Cesium.PolygonHierarchy(p); rim.polyline.positions=p; },
+           setVisible(v){ fill.show=v; rim.show=v; } }; }
+const capX=makeCap(COL.X), capKa=makeCap(COL.Ka);
 let activeSite=null, servedArr=[], maskNow=10;
 const curSec=()=>Cesium.JulianDate.secondsDifference(viewer.clock.currentTime,start);
 function servedNameAt(t){ if(!servedArr.length) return null; const k=Math.max(0,Math.min(servedArr.length-1,Math.floor(t/C.stepe))); return servedArr[k]; }
-const leoCap=viewer.entities.add({polygon:{hierarchy:new Cesium.CallbackProperty(()=>{
-    const nm=servedNameAt(curSec()), s=nm&&LEOSET.byName[nm]; if(!s) return new Cesium.PolygonHierarchy([]);
-    const c=s.prop.getValue(viewer.clock.currentTime); if(!c) return new Cesium.PolygonHierarchy([]); const sp=carto(c);
-    return new Cesium.PolygonHierarchy(ring(sp.lat,sp.lon,centralAngleDeg(sp.h,maskNow))); },false),
-  material:Cesium.Color.fromCssColorString(COL.LEO).withAlpha(0.22),outline:true,outlineColor:Cesium.Color.fromCssColorString(COL.LEO).withAlpha(0.9),height:0}});
+function servedRing(){ const nm=servedNameAt(curSec()), s=nm&&LEOSET.byName[nm]; if(!s) return null;
+  const c=s.prop.getValue(viewer.clock.currentTime); if(!c) return null; const sp=carto(c);
+  return ring(sp.lat,sp.lon,centralAngleDeg(sp.h,maskNow)); }
+const leoCap=viewer.entities.add({polygon:{hierarchy:new Cesium.CallbackProperty(()=>new Cesium.PolygonHierarchy(servedRing()||[]),false),
+  material:Cesium.Color.fromCssColorString(COL.LEO).withAlpha(0.12), height:0}});
+const leoRim=viewer.entities.add({polyline:{positions:new Cesium.CallbackProperty(()=>servedRing()||[],false), width:3, clampToGround:true,
+  material:new Cesium.PolylineGlowMaterialProperty({glowPower:0.4, color:Cesium.Color.fromCssColorString(COL.LEO).withAlpha(0.95)})}});
 let siteCart=null;
 const beam=viewer.entities.add({polyline:{positions:new Cesium.CallbackProperty(()=>{
     if(!siteCart) return []; const nm=servedNameAt(curSec()), s=nm&&LEOSET.byName[nm]; if(!s) return [];
@@ -278,8 +288,8 @@ async function selectSite(site,fly=true){
   activeSite=site; maskNow=site.mask; $("seglabel").textContent=site.label; $("err").textContent="";
   siteCart=Cesium.Cartesian3.fromDegrees(site.lon,site.lat,0); siteEnt.label.text=site.name;
   const bx=bestGeo(SYR,site), bk=bestGeo(GX,site);
-  capX.polygon.hierarchy=new Cesium.PolygonHierarchy(ring(bx.s.sub.lat,bx.s.sub.lon,centralAngleDeg(bx.s.sub.h,site.mask)));
-  capKa.polygon.hierarchy=new Cesium.PolygonHierarchy(ring(bk.s.sub.lat,bk.s.sub.lon,centralAngleDeg(bk.s.sub.h,site.mask)));
+  capX.setRing(ring(bx.s.sub.lat,bx.s.sub.lon,centralAngleDeg(bx.s.sub.h,site.mask)));
+  capKa.setRing(ring(bk.s.sub.lat,bk.s.sub.lon,centralAngleDeg(bk.s.sub.h,site.mask)));
   $("c_geo").innerHTML = bk.el>=site.mask?'<span style="color:var(--ka)">GX '+bk.el.toFixed(0)+'°</span>':'<span style="color:var(--bad)">GX masque</span>';
   if(fly) viewer.camera.flyTo({destination:Cesium.Cartesian3.fromDegrees(site.lon,site.lat,9.0e6),duration:1.2});
   try{
@@ -398,8 +408,8 @@ $("d_date").onchange=applyDate; $("d_time").onchange=applyDate;
 
 // ---------- toggles + service LEO ----------
 const setShow=(arr,v)=>arr.forEach(s=>s.entity&&(s.entity.show=v));
-$("t_x").onchange=e=>{ setShow(SYR,e.target.checked); capX.show=e.target.checked; };
-$("t_ka").onchange=e=>{ setShow(GX,e.target.checked); capKa.show=e.target.checked; };
+$("t_x").onchange=e=>{ setShow(SYR,e.target.checked); capX.setVisible(e.target.checked); };
+$("t_ka").onchange=e=>{ setShow(GX,e.target.checked); capKa.setVisible(e.target.checked); };
 $("t_leo").onchange=e=>{ setShow(KUI,e.target.checked); };
 $("t_star").onchange=e=>{ if(e.target.checked){ ensureStarlink(); setShow(STAR,true); } else if(starBuilt) setShow(STAR,false); };
 $("t_beam").onchange=e=>{ beam.show=e.target.checked; };
@@ -407,7 +417,9 @@ $("leoset").onchange=async e=>{ const k=e.target.value; const busy=$("busy"); bu
   if(k==="starlink"){ ensureStarlink(); setShow(STAR,true); $("t_star").checked=true;
     LEOSET={key:"starlink",arr:STAR,byName:STAR_byName,tles:TLE.starlink}; }
   else { LEOSET={key:"kuiper",arr:KUI,byName:KUI_byName,tles:TLE.kuiper}; }
-  leoCap.polygon.material=Cesium.Color.fromCssColorString(k==="starlink"?COL.STAR:COL.LEO).withAlpha(0.22);
+  const lc=Cesium.Color.fromCssColorString(k==="starlink"?COL.STAR:COL.LEO);
+  leoCap.polygon.material=lc.withAlpha(0.12);
+  leoRim.polyline.material=new Cesium.PolylineGlowMaterialProperty({glowPower:0.4,color:lc.withAlpha(0.95)});
   await selectSite(activeSite,false); busy.textContent=""; };
 
 // ---------- init ----------
