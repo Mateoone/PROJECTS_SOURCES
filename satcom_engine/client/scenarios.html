@@ -19,7 +19,8 @@
   body{margin:0;font:15px/1.55 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;
        background:var(--bg);color:var(--ink);padding:20px}
   h1{font-size:20px;font-weight:600;margin:0 0 4px}
-  .sub{color:var(--muted);margin:0 0 16px;font-size:13px;max-width:900px}
+  h2.sec{font-size:16px;font-weight:600;margin:26px 0 10px}
+  .sub{color:var(--muted);margin:0 0 16px;font-size:13px;max-width:920px}
   .wrap{max-width:1180px;margin:0 auto}
   .bar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:18px}
   .bar input{flex:1;min-width:240px;padding:7px 9px;border:1px solid var(--line);border-radius:7px;
@@ -48,6 +49,19 @@
   .vtext b{color:var(--ink)}
   .loading,.err{color:var(--muted);font-size:13px;padding:24px 0;text-align:center}
   .err{color:var(--bad);white-space:pre-wrap}
+  /* matrice antennes */
+  table.mx{width:100%;border-collapse:collapse;font-size:12.5px;background:var(--panel);
+           border:1px solid var(--line);border-radius:12px;overflow:hidden}
+  table.mx th,table.mx td{padding:9px 11px;text-align:center;border-bottom:1px solid var(--line)}
+  table.mx thead th{background:var(--bg);font-weight:600;font-size:12px}
+  table.mx td.svc{text-align:left;font-weight:600}
+  table.mx td.svc small{display:block;color:var(--muted);font-weight:400;font-size:11px}
+  .ant{display:inline-block;border-radius:6px;padding:2px 8px;font-weight:600;font-size:11.5px}
+  .a-geo{background:rgba(83,74,183,.14);color:var(--geo)}
+  .a-leo{background:rgba(29,158,117,.16);color:var(--leo)}
+  .a-no{background:rgba(216,90,48,.14);color:var(--bad)}
+  .legend{display:flex;gap:14px;flex-wrap:wrap;font-size:11.5px;color:var(--muted);margin-top:8px}
+  .legend span{display:inline-flex;align-items:center;gap:5px}
   .foot{color:var(--muted);font-size:12px;margin-top:18px;line-height:1.7}
   .foot code{background:var(--bg);border:1px solid var(--line);border-radius:5px;padding:1px 5px}
 </style>
@@ -55,10 +69,10 @@
 <body>
 <div class="wrap">
   <h1>SATCOM — 4 scénarios de service</h1>
-  <p class="sub">NanoBlade Ka comparée sur trois services — <b>Syracuse</b> (GEO bande X),
-  <b>Inmarsat GX</b> (GEO Ka) et <b>Amazon Leo</b> (LEO Ka) — pour quatre cas d'emploi.
-  Chaque barre = débit utile (Mbps) calculé en direct par le <i>SATCOM Coverage Engine</i> ;
-  une liaison GEO sous le masque d'élévation local est <span style="color:var(--bad)">indisponible</span>.</p>
+  <p class="sub">Trois services — <b>Syracuse</b> (GEO bande X), <b>Inmarsat GX</b> (GEO Ka) et
+  <b>Amazon Leo</b> (LEO Ka) — sur quatre cas d'emploi. Débit utile (Mbps) calculé en direct par le
+  <i>SATCOM Coverage Engine</i>, <b>élévation</b> et <b>atténuation pluie</b> (ITU-R P.618) intégrées ;
+  une liaison GEO sous le masque local est <span style="color:var(--bad)">indisponible</span>.</p>
 
   <div class="bar">
     <label>API</label>
@@ -70,157 +84,226 @@
 
   <div id="grid" class="grid"></div>
 
+  <h2 class="sec">Antenne attendue par service — pour une qualité de service optimale</h2>
+  <p class="sub" style="margin-bottom:10px">Plus petite classe d'antenne (terminal G/T) dont la liaison
+  ferme le débit du service, dans les conditions de chaque scénario (élévation + pluie). Si le GEO est
+  masqué ou insuffisant, le <b>LEO</b> est requis. La <b>visioconférence/temps réel</b> privilégie le LEO (latence).</p>
+  <div id="matrix"><div class="loading">Calcul en cours…</div></div>
+  <div class="legend" id="ant_legend"></div>
+
   <p class="foot">
-    Hypothèses (illustratives, ajustables) : forme d'onde commune (porteuse par défaut du moteur,
-    balayage ACM DVB-S2X) ; GEO routes évaluées aux deux extrémités → <i>pire cas</i> retenu pour la
-    feasibilité ; LEO = coquille Walker ~Amazon Leo (28×28 @ 610 km, i=51,9°) sur 30 min, disponibilité =
-    % de pas au-dessus du masque. Débit LEO = médiane des pas servis.
-    Source de vérité : <code>POST /link</code> (GEO) et <code>POST /scenario</code> (LEO).
+    Hypothèses (illustratives, ajustables) : forme d'onde commune (porteuse par défaut, ACM DVB-S2X) ;
+    routes évaluées au <i>pire cas</i> (élévation minimale). <b>Pluie</b> : ITU-R P.618/P.838 simplifié,
+    R<sub>0.01</sub> par région (Europe 30, Golfe 20, Ukraine 30, Méditerranée 35 mm/h), appliquée au bilan GEO
+    via <code>rain_margin_db</code> ; le LEO sert à forte élévation (pluie plus faible, indicative).
+    <b>Antennes</b> : Manpack (G/T 5), Nano ~NanoBlade (10,8), Compact 0,6 m (15), Terminal 1,0 m (19 dB/K).
+    Source : <code>POST /link</code> (GEO) · <code>POST /scenario</code> (LEO).
   </p>
 </div>
 
 <script>
 const API_DEFAULT = "https://satcom-coverage-engine-58899663812.europe-west9.run.app";
 const THR_MAX = 12; // Mbps — échelle commune des barres
+const Re = 6378.137, H_GEO = 35786;
 
-// ---- Définition des 4 scénarios ------------------------------------------
+// ---- Services et antennes (req. QoS) ----
+const SERVICES = [
+  {label:"Voix",            kbps:64},
+  {label:"Image",           kbps:256},
+  {label:"Échange de data", kbps:2048},
+  {label:"Visioconférence", kbps:4096, realtime:true},
+  {label:"Vidéo HD",        kbps:8192},
+];
+const ANTENNAS = [
+  {label:"Manpack",         gt:5,    short:"Manpack"},
+  {label:"Nano (NanoBlade)",gt:10.8, short:"Nano"},
+  {label:"Compact 0,6 m",   gt:15,   short:"0,6 m"},
+  {label:"Terminal 1,0 m",  gt:19,   short:"1,0 m"},
+];
+
+// ---- 4 scénarios ----
 const SCENARIOS = [
-  {
-    n:1, title:"Europe — liaison mobile Paris → Kiev",
-    ctx:"NanoBlade Ka sur véhicule (CCA X) · région Europe",
-    sites:[{name:"Paris",lat:48.85,lon:2.35},{name:"Kiev",lat:50.45,lon:30.52}],
-    mask:10,
-    geo:[
-      {key:"Syracuse",  label:"Syracuse · GEO X",  lon:5,  up:8000, down:7500, eirp:52, gt:5,  bw:40, gtTerm:7.0,  color:"var(--geo2)"},
-      {key:"InmarsatGX",label:"Inmarsat GX · GEO Ka",lon:11, up:30000,down:20000,eirp:60, gt:10, bw:72, gtTerm:10.8, color:"var(--geo)"},
-    ],
-    leo:{label:"Amazon Leo · LEO Ka", eirp:38, gt:6, gtTerm:10.8, color:"var(--leo)"},
-  },
-  {
-    n:2, title:"Golfe — liaison mobile Abu Dhabi → Téhéran",
-    ctx:"NanoBlade Ka sur véhicule (CCA X) · région Golfe",
-    sites:[{name:"Abu Dhabi",lat:24.45,lon:54.30},{name:"Téhéran",lat:35.69,lon:51.39}],
-    mask:10,
-    geo:[
-      {key:"Syracuse",  label:"Syracuse · GEO X",  lon:47, up:8000, down:7500, eirp:52, gt:5,  bw:40, gtTerm:7.0,  color:"var(--geo2)"},
-      {key:"InmarsatGX",label:"Inmarsat GX · GEO Ka",lon:63, up:30000,down:20000,eirp:60, gt:10, bw:72, gtTerm:10.8, color:"var(--geo)"},
-    ],
-    leo:{label:"Amazon Leo · LEO Ka", eirp:38, gt:6, gtTerm:10.8, color:"var(--leo)"},
-  },
-  {
-    n:3, title:"Ukraine — grappe de véhicules, urbain dense",
-    ctx:"Terminaux véhicule Ka · masque urbain élevé (Kharkiv)",
-    sites:[{name:"Kharkiv",lat:49.99,lon:36.23}],
-    mask:30,
-    geo:[
-      {key:"Syracuse",  label:"Syracuse · GEO X",  lon:5,  up:8000, down:7500, eirp:52, gt:5,  bw:40, gtTerm:7.0, color:"var(--geo2)"},
-      {key:"InmarsatGX",label:"Inmarsat GX · GEO Ka",lon:11, up:30000,down:20000,eirp:60, gt:10, bw:72, gtTerm:8.0, color:"var(--geo)"},
-    ],
-    leo:{label:"Amazon Leo · LEO Ka", eirp:38, gt:6, gtTerm:8.0, color:"var(--leo)"},
-  },
-  {
-    n:4, title:"Méditerranée orientale — USV maritime",
-    ctx:"Terminal maritime Ka sur drone de surface (USV) · ciel ouvert",
-    sites:[{name:"USV Est-Med",lat:34.0,lon:33.0}],
-    mask:7,
-    geo:[
-      {key:"Syracuse",  label:"Syracuse · GEO X",  lon:5,  up:8000, down:7500, eirp:52, gt:5,  bw:40, gtTerm:7.0,  color:"var(--geo2)"},
-      {key:"InmarsatGX",label:"Inmarsat GX · GEO Ka",lon:11, up:30000,down:20000,eirp:60, gt:10, bw:72, gtTerm:9.5, color:"var(--geo)"},
-    ],
-    leo:{label:"Amazon Leo · LEO Ka", eirp:38, gt:6, gtTerm:9.5, color:"var(--leo)"},
-  },
+  { n:1, title:"Europe — liaison mobile Paris → Kiev",
+    ctx:"NanoBlade Ka sur véhicule (CCA X) · région Europe", rain:30,
+    sites:[{name:"Paris",lat:48.85,lon:2.35},{name:"Kiev",lat:50.45,lon:30.52}], mask:10,
+    geo:[ {key:"Syracuse",label:"Syracuse · GEO X",lon:5,up:8000,down:7500,eirp:52,gt:5,bw:40,gtTerm:7.0,color:"var(--geo2)"},
+          {key:"InmarsatGX",label:"Inmarsat GX · GEO Ka",lon:11,up:30000,down:20000,eirp:60,gt:10,bw:72,gtTerm:10.8,color:"var(--geo)"} ],
+    leo:{label:"Amazon Leo · LEO Ka",eirp:38,gt:6,gtTerm:10.8,color:"var(--leo)"} },
+  { n:2, title:"Golfe — liaison mobile Abu Dhabi → Téhéran",
+    ctx:"NanoBlade Ka sur véhicule (CCA X) · région Golfe", rain:20,
+    sites:[{name:"Abu Dhabi",lat:24.45,lon:54.30},{name:"Téhéran",lat:35.69,lon:51.39}], mask:10,
+    geo:[ {key:"Syracuse",label:"Syracuse · GEO X",lon:47,up:8000,down:7500,eirp:52,gt:5,bw:40,gtTerm:7.0,color:"var(--geo2)"},
+          {key:"InmarsatGX",label:"Inmarsat GX · GEO Ka",lon:63,up:30000,down:20000,eirp:60,gt:10,bw:72,gtTerm:10.8,color:"var(--geo)"} ],
+    leo:{label:"Amazon Leo · LEO Ka",eirp:38,gt:6,gtTerm:10.8,color:"var(--leo)"} },
+  { n:3, title:"Ukraine — grappe de véhicules, urbain dense",
+    ctx:"Terminaux véhicule Ka · masque urbain élevé (Kharkiv)", rain:30,
+    sites:[{name:"Kharkiv",lat:49.99,lon:36.23}], mask:30,
+    geo:[ {key:"Syracuse",label:"Syracuse · GEO X",lon:5,up:8000,down:7500,eirp:52,gt:5,bw:40,gtTerm:7.0,color:"var(--geo2)"},
+          {key:"InmarsatGX",label:"Inmarsat GX · GEO Ka",lon:11,up:30000,down:20000,eirp:60,gt:10,bw:72,gtTerm:8.0,color:"var(--geo)"} ],
+    leo:{label:"Amazon Leo · LEO Ka",eirp:38,gt:6,gtTerm:8.0,color:"var(--leo)"} },
+  { n:4, title:"Méditerranée orientale — USV maritime",
+    ctx:"Terminal maritime Ka sur drone de surface (USV) · ciel ouvert", rain:35,
+    sites:[{name:"USV Est-Med",lat:34.0,lon:33.0}], mask:7,
+    geo:[ {key:"Syracuse",label:"Syracuse · GEO X",lon:5,up:8000,down:7500,eirp:52,gt:5,bw:40,gtTerm:7.0,color:"var(--geo2)"},
+          {key:"InmarsatGX",label:"Inmarsat GX · GEO Ka",lon:11,up:30000,down:20000,eirp:60,gt:10,bw:72,gtTerm:9.5,color:"var(--geo)"} ],
+    leo:{label:"Amazon Leo · LEO Ka",eirp:38,gt:6,gtTerm:9.5,color:"var(--leo)"} },
 ];
 
 const $ = id => document.getElementById(id);
 const median = a => { if(!a.length) return 0; const s=[...a].sort((x,y)=>x-y); const m=s.length>>1;
   return s.length%2 ? s[m] : (s[m-1]+s[m])/2; };
 
+// élévation GEO (sat à lat 0, lon satLon) depuis le site
+function geoElev(siteLat, siteLon, satLon){
+  const a=siteLat*Math.PI/180, dl=(satLon-siteLon)*Math.PI/180;
+  const cg=Math.cos(a)*Math.cos(dl), g=Math.acos(Math.min(1,Math.max(-1,cg)));
+  return Math.atan2(Math.cos(g)-Re/(Re+H_GEO), Math.sin(g))*180/Math.PI;
+}
+// ITU-R P.838 (k,α) approximés pour nos deux bandes (descendante)
+function kAlpha(fGHz){ return fGHz<12 ? {k:0.00301,a:1.20} : {k:0.0751,a:1.099}; }
+// ITU-R P.618 — atténuation pluie dépassée 0,01 % du temps (dB)
+function rainAtten(R, fGHz, elDeg, latDeg){
+  if(elDeg<=0) return 0;
+  const el=elDeg*Math.PI/180;
+  const hR = Math.abs(latDeg)<23 ? 5.0 : Math.max(0, 5.0-0.075*(Math.abs(latDeg)-23));
+  if(hR<=0) return 0;
+  const Ls=hR/Math.sin(el), Lg=Ls*Math.cos(el);
+  const {k,a}=kAlpha(fGHz), gamma=k*Math.pow(R,a);
+  const r001=1/(1+0.78*Math.sqrt(Lg*gamma/fGHz)-0.38*(1-Math.exp(-2*Lg)));
+  return gamma*Ls*Math.max(0.1,Math.min(2.5,r001));
+}
+
 async function post(base, path, body){
-  const r = await fetch(base+path, {method:"POST",
-    headers:{"Content-Type":"application/json"}, body:JSON.stringify(body)});
+  const r = await fetch(base+path, {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify(body)});
   if(!r.ok) throw new Error("HTTP "+r.status+" — "+await r.text());
   return r.json();
 }
 
+async function linkGeo(base, sc, g, site, gtTerm){
+  const el = geoElev(site.lat, site.lon, g.lon);
+  const rain = rainAtten(sc.rain, g.down/1000, el, site.lat);
+  const d = await post(base, "/link", {
+    site:{name:site.name, lat_deg:site.lat, lon_deg:site.lon, elevation_mask_deg:sc.mask},
+    terminal:{name:"term", gt_dbk:gtTerm},
+    carrier:{uplink_mhz:g.up, downlink_mhz:g.down},
+    satellite_geo:{name:g.key, longitude_deg:g.lon, eirp_dbw:g.eirp, gt_dbk:g.gt, transponder_bw_mhz:g.bw, sfd_dbw_m2:-90},
+    rain_margin_db: rain,
+  });
+  return {d, el, rain};
+}
+
 async function evalGeo(base, sc, g){
-  let feasible=true, elMin=Infinity, thr=Infinity, blockedAt=null;
+  let feasible=true, elMin=Infinity, rainMax=0, thr=Infinity, blockedAt=null;
   for(const s of sc.sites){
-    const d = await post(base, "/link", {
-      site:{name:s.name, lat_deg:s.lat, lon_deg:s.lon, elevation_mask_deg:sc.mask},
-      terminal:{name:"term", gt_dbk:g.gtTerm},
-      carrier:{uplink_mhz:g.up, downlink_mhz:g.down},
-      satellite_geo:{name:g.key, longitude_deg:g.lon, eirp_dbw:g.eirp, gt_dbk:g.gt,
-                     transponder_bw_mhz:g.bw, sfd_dbw_m2:-90},
-    });
-    elMin = Math.min(elMin, d.geometry.elevation_deg);
+    const {d, el, rain} = await linkGeo(base, sc, g, s, g.gtTerm);
+    elMin = Math.min(elMin, el); rainMax = Math.max(rainMax, rain);
     if(d.throughput_mbps!=null) thr = Math.min(thr, d.throughput_mbps);
     if(!d.feasible){ feasible=false; if(!d.geometry.visible) blockedAt=s.name; }
   }
-  return {kind:"GEO", label:g.label, color:g.color, feasible,
-          el:elMin, thr: feasible ? thr : 0, blockedAt, note:`él ≥ ${elMin.toFixed(0)}°`};
+  return {kind:"GEO", label:g.label, color:g.color, feasible, el:elMin, rain:rainMax,
+          thr: feasible ? thr : 0, blockedAt,
+          note:`él ≥ ${elMin.toFixed(0)}° · pluie ${rainMax.toFixed(1)} dB`};
 }
 
 async function evalLeo(base, sc){
-  let availMin=100, ho=0, thrs=[];
+  let availMin=100, ho=0, thrs=[], els=[];
   for(const s of sc.sites){
     const d = await post(base, "/scenario", {
       site:{name:s.name, lat_deg:s.lat, lon_deg:s.lon, elevation_mask_deg:sc.mask},
       terminal:{name:"term", gt_dbk:sc.leo.gtTerm},
-      walker:{name:"AmazonLeo", altitude_km:610, inclination_deg:51.9, planes:28,
+      tles:[], walker:{name:"AmazonLeo", altitude_km:610, inclination_deg:51.9, planes:28,
               sats_per_plane:28, phasing:1, eirp_dbw:sc.leo.eirp, gt_dbk:sc.leo.gt},
-      epoch_iso:"2026-06-26T12:00:00Z", duration_s:1800, step_s:30,
-      handover_policy:"max_elevation",
+      epoch_iso:"2026-06-26T12:00:00Z", duration_s:1800, step_s:30, handover_policy:"max_elevation",
     });
-    availMin = Math.min(availMin, d.availability_pct);
-    ho = Math.max(ho, d.handover_count);
+    availMin = Math.min(availMin, d.availability_pct); ho = Math.max(ho, d.handover_count);
     thrs.push(...d.series.filter(p=>p.served && p.throughput_mbps!=null).map(p=>p.throughput_mbps));
+    els.push(...d.series.filter(p=>p.served && p.elevation_deg!=null).map(p=>p.elevation_deg));
   }
-  const feasible = availMin>0;
-  return {kind:"LEO", label:sc.leo.label, color:sc.leo.color, feasible,
-          avail:availMin, ho, thr: feasible ? median(thrs) : 0,
-          note:`${availMin.toFixed(0)}% · ${ho} handovers`};
+  const elMed = els.length ? median(els) : 0;
+  const rain = rainAtten(sc.rain, 20, elMed, sc.sites[0].lat);
+  return {kind:"LEO", label:sc.leo.label, color:sc.leo.color, feasible:availMin>0,
+          avail:availMin, ho, thr: availMin>0 ? median(thrs) : 0,
+          note:`${availMin.toFixed(0)}% · ${ho} HO · él~${elMed.toFixed(0)}° · pluie ~${rain.toFixed(1)} dB`};
 }
 
 function verdict(rows, sc){
   const geoOk = rows.filter(r=>r.kind==="GEO" && r.feasible);
   const leo = rows.find(r=>r.kind==="LEO");
   if(geoOk.length===0){
-    return {cls:"b-bad", txt:`<b>GEO indisponible</b> — masque urbain ${sc.mask}° au-dessus de l'élévation `+
+    return {cls:"b-bad", txt:`<b>GEO indisponible</b> — masque ${sc.mask}° au-dessus de l'élévation `+
       `(GEO ~${Math.max(...rows.filter(r=>r.kind==="GEO").map(r=>r.el)).toFixed(0)}°). `+
-      `Seul <b>${leo.label.split(" ·")[0]}</b> assure le service (${leo.avail.toFixed(0)}%, ${leo.ho} handovers ≈ 1/min).`};
+      `Seul <b>${leo.label.split(" ·")[0]}</b> assure le service (${leo.avail.toFixed(0)}%, ${leo.ho} handovers).`};
   }
   const best = geoOk.reduce((a,b)=>b.thr>a.thr?b:a);
   const cls = geoOk.length===rows.filter(r=>r.kind==="GEO").length ? "b-ok" : "b-warn";
   return {cls, txt:`Couverture de bout en bout. Primaire <b>${best.label.split(" ·")[0]}</b> `+
-    `(${best.thr.toFixed(1)} Mbps, él ≥ ${best.el.toFixed(0)}°)`+
+    `(${best.thr.toFixed(1)} Mbps, él ≥ ${best.el.toFixed(0)}°, pluie ${best.rain.toFixed(1)} dB)`+
     (leo&&leo.feasible?`, <b>${leo.label.split(" ·")[0]}</b> en secours (${leo.avail.toFixed(0)}%).`:`.`)};
 }
 
 function chart(rows){
-  const W=600, rowH=46, top=10, lblW=150, barX=lblW+8, barW=W-barX-118, H=top+rows.length*rowH+6;
+  const W=600, rowH=48, top=10, lblW=150, barX=lblW+8, barW=W-barX-118, H=top+rows.length*rowH+6;
   let s=`<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Débit utile par service">`;
   rows.forEach((r,i)=>{
     const y=top+i*rowH, cy=y+rowH/2;
     const w=Math.max(2, Math.min(1, r.thr/THR_MAX)*barW);
     const col = r.feasible ? r.color : "var(--line)";
-    s+=`<text x="0" y="${cy-3}" font-size="12.5" font-weight="600" fill="var(--ink)">${r.label}</text>`;
-    s+=`<text x="0" y="${cy+13}" font-size="11" fill="var(--muted)">${r.note}</text>`;
-    s+=`<rect x="${barX}" y="${y+9}" width="${barW}" height="20" rx="5" fill="var(--bg)" stroke="var(--line)"/>`;
-    s+=`<rect x="${barX}" y="${y+9}" width="${w}" height="20" rx="5" fill="${col}" opacity="${r.feasible?1:.5}"/>`;
+    s+=`<text x="0" y="${cy-4}" font-size="12.5" font-weight="600" fill="var(--ink)">${r.label}</text>`;
+    s+=`<text x="0" y="${cy+12}" font-size="10.5" fill="var(--muted)">${r.note}</text>`;
+    s+=`<rect x="${barX}" y="${y+10}" width="${barW}" height="20" rx="5" fill="var(--bg)" stroke="var(--line)"/>`;
+    s+=`<rect x="${barX}" y="${y+10}" width="${w}" height="20" rx="5" fill="${col}" opacity="${r.feasible?1:.5}"/>`;
     if(r.feasible)
-      s+=`<text x="${barX+w+7}" y="${cy+4}" font-size="12.5" font-weight="700" fill="var(--ink)">${r.thr.toFixed(1)} Mbps</text>`;
+      s+=`<text x="${barX+w+7}" y="${cy+5}" font-size="12.5" font-weight="700" fill="var(--ink)">${r.thr.toFixed(1)} Mbps</text>`;
     else
-      s+=`<text x="${barX+8}" y="${cy+4}" font-size="11.5" font-weight="600" fill="var(--bad)">indisponible${r.blockedAt?" ("+r.blockedAt+")":""}</text>`;
+      s+=`<text x="${barX+8}" y="${cy+5}" font-size="11.5" font-weight="600" fill="var(--bad)">indisponible${r.blockedAt?" ("+r.blockedAt+")":""}</text>`;
   });
   s+=`</svg>`;
   return s;
 }
 
-async function evalScenario(base, sc){
-  const geoRows = [];
-  for(const g of sc.geo) geoRows.push(await evalGeo(base, sc, g));
-  const leoRow = await evalLeo(base, sc);
-  return [...geoRows, leoRow];
+// Balayage antenne sur le GEO Ka (pire site, pluie) -> débit par classe ; sinon LEO.
+async function antennaSweep(base, sc){
+  const g = sc.geo.find(x=>x.key==="InmarsatGX");
+  let worst=null;
+  for(const s of sc.sites){ const el=geoElev(s.lat,s.lon,g.lon); if(!worst||el<worst.el) worst={s,el}; }
+  const masked = worst.el < sc.mask;
+  const thrByAnt=[];
+  if(!masked){
+    for(const a of ANTENNAS){
+      const {d} = await linkGeo(base, sc, g, worst.s, a.gt);
+      thrByAnt.push({ant:a, thr: d.feasible ? (d.throughput_mbps||0) : 0});
+    }
+  }
+  return {masked, thrByAnt};
+}
+function recoAnt(service, sweep, leoThr){
+  const need = service.kbps/1000;
+  if(!sweep.masked){
+    for(const x of sweep.thrByAnt) if(x.thr>=need) return {txt:x.ant.short, cls:"a-geo"};
+  }
+  if(leoThr>=need) return {txt:"LEO", cls:"a-leo"};
+  return {txt:"—", cls:"a-no"};
+}
+
+function renderMatrix(data){
+  let h=`<table class="mx"><thead><tr><th class="svc" style="text-align:left">Service (débit utile)</th>`;
+  for(const d of data) h+=`<th>${d.sc.n}. ${d.sc.title.split(" — ")[0]}</th>`;
+  h+=`</tr></thead><tbody>`;
+  for(const svc of SERVICES){
+    h+=`<tr><td class="svc">${svc.label}<small>${svc.kbps>=1024?(svc.kbps/1024)+" Mbps":svc.kbps+" kbps"}${svc.realtime?" · temps réel":""}</small></td>`;
+    for(const d of data){
+      let r = recoAnt(svc, d.sweep, d.leoThr);
+      if(svc.realtime && r.cls==="a-geo") r = {txt:r.txt+" · LEO conseillé", cls:"a-geo"};
+      h+=`<td><span class="ant ${r.cls}">${r.txt}</span></td>`;
+    }
+    h+=`</tr>`;
+  }
+  h+=`</tbody></table>`;
+  $("matrix").innerHTML=h;
+  $("ant_legend").innerHTML =
+    `<span><i class="ant a-geo" style="padding:1px 7px">0,6 m</i> antenne GEO (Ka) qui ferme le service</span>`+
+    `<span><i class="ant a-leo" style="padding:1px 7px">LEO</i> GEO masqué/insuffisant → LEO requis</span>`+
+    `<span><i class="ant a-no" style="padding:1px 7px">—</i> non desservi</span>`;
 }
 
 function cardShell(sc){
@@ -230,6 +313,7 @@ function cardShell(sc){
     <div class="pills">
       <span class="pill">${sc.sites.map(s=>s.name).join(" → ")}</span>
       <span class="pill">masque ${sc.mask}°</span>
+      <span class="pill">pluie R₀.₀₁ ${sc.rain} mm/h</span>
     </div>
     <div class="body"><div class="loading">Calcul en cours…</div></div>
   </div>`;
@@ -239,18 +323,25 @@ async function run(){
   const base = ($("api").value || API_DEFAULT).replace(/\/$/,"");
   $("run").disabled=true; $("run").textContent="Calcul…";
   $("grid").innerHTML = SCENARIOS.map(cardShell).join("");
-  await Promise.all(SCENARIOS.map(async sc=>{
+  $("matrix").innerHTML = `<div class="loading">Calcul en cours…</div>`;
+  const data = await Promise.all(SCENARIOS.map(async sc=>{
     const body = document.querySelector(`#sc${sc.n} .body`);
     try{
-      const rows = await evalScenario(base, sc);
+      const geoRows=[]; for(const g of sc.geo) geoRows.push(await evalGeo(base, sc, g));
+      const leoRow = await evalLeo(base, sc);
+      const rows = [...geoRows, leoRow];
       const v = verdict(rows, sc);
       body.innerHTML = chart(rows) +
         `<div class="verdict"><span class="badge ${v.cls}">${v.cls==="b-bad"?"LEO seul":v.cls==="b-warn"?"partiel":"OK"}</span>`+
         `<span class="vtext">${v.txt}</span></div>`;
+      const sweep = await antennaSweep(base, sc);
+      return {sc, leoThr: leoRow.thr, sweep};
     }catch(e){
       body.innerHTML = `<div class="err">Échec : ${e.message}\n(Vérifie l'URL de l'API et que le service répond.)</div>`;
+      return {sc, leoThr:0, sweep:{masked:true, thrByAnt:[]}};
     }
   }));
+  renderMatrix(data);
   $("run").disabled=false; $("run").textContent="Recalculer";
 }
 
