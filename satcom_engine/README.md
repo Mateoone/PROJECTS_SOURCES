@@ -77,13 +77,22 @@ export PROJECT_ID="<ton-projet>" ; export REGION="europe-west9"
 ./deploy.sh                       # tests + build + deploy + affichage de l'URL
 ```
 
-## Client web
+## Clients web
 
-`client/timeline.html` — client léger (vanilla JS, zéro dépendance) qui appelle
-`/scenario` et trace la timeline de visibilité : ruban du satellite servant,
-handovers, courbe d'élévation, infobulle (C/N, MODCOD, débit). Renseigner l'API
-base URL en haut du panneau (local ou URL Cloud Run). Penser à régler
-`CORS_ORIGINS` côté service sur l'origine du client.
+Trois clients légers (vanilla JS, zéro build), pointant par défaut sur le service
+Cloud Run déployé. Régler `CORS_ORIGINS` côté service sur l'origine du client en prod.
+
+- `client/timeline.html` — appelle `/scenario` et trace la timeline de visibilité :
+  ruban du satellite servant, handovers, courbe d'élévation, infobulle (C/N, MODCOD, débit).
+- `client/scenarios.html` — tableau de bord comparant **Syracuse** (GEO X), **Inmarsat GX**
+  (GEO Ka) et **Amazon Leo** (LEO Ka) sur 4 cas d'emploi (route Europe, route Golfe,
+  Ukraine urbain dense, USV Méditerranée). Débit utile, masquage GEO, disponibilité LEO
+  et service recommandé, calculés en direct.
+- `client/coverage3d.html` — globe **CesiumJS** avec **TLE réels** (Celestrak : Syracuse 4A/4B,
+  Inmarsat 5/GX5/6, 364 sats Amazon Kuiper). Affiche les empreintes de couverture GEO
+  (cap d'élévation) et LEO, anime la constellation et le **satellite servant / les handovers**
+  (via `/scenario` avec les TLE), avec le graphe de scénario synchronisé sous le globe.
+  Imagerie Natural Earth embarquée (aucun token Cesium ion requis).
 
 ## Statut de validation
 
