@@ -10,6 +10,7 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 COPY app ./app
+COPY client ./client
 
 # Cloud Run injecte PORT (8080 par defaut). La forme shell permet l'expansion.
 EXPOSE 8080

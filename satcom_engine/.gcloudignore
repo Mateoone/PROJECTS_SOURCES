@@ -1,5 +1,5 @@
 # Fichiers exclus de l'upload Cloud Build (gcloud run deploy --source .).
-# L'image ne dépend que de app/ + requirements.txt (cf. Dockerfile).
+# L'image embarque app/ + client/ + requirements.txt (cf. Dockerfile).
 .git
 .gitignore
 *.md
@@ -8,6 +8,5 @@ __pycache__/
 *.pyc
 .pytest_cache/
 tests/
-client/
 *.zip
 .DS_Store

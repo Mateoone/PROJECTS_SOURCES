@@ -8,6 +8,8 @@ from __future__ import annotations
 import os
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import RedirectResponse
+from fastapi.staticfiles import StaticFiles
 from .models import LinkRequest, ScenarioRequest, LinkResult
 from . import engine
 
@@ -42,3 +44,14 @@ def scenario(req: ScenarioRequest):
     """Propage une constellation LEO (TLE reels ou Walker type Amazon Leo) sur une
     fenetre temporelle : visibilite, handover, bilan RF par pas, disponibilite %."""
     return engine.run_leo_scenario(req)
+
+
+# --- Clients web statiques (timeline / scenarios / coverage3d) ---
+# Montes a /ui ; meme origine que l'API (pas de CORS pour les clients servis ici).
+_CLIENT_DIR = os.path.join(os.path.dirname(__file__), "..", "client")
+if os.path.isdir(_CLIENT_DIR):
+    @app.get("/", include_in_schema=False)
+    def _root():
+        return RedirectResponse("/ui/")
+
+    app.mount("/ui", StaticFiles(directory=_CLIENT_DIR, html=True), name="ui")
