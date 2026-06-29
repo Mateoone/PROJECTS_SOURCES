@@ -89,13 +89,17 @@ Cloud Run déployé. Régler `CORS_ORIGINS` côté service sur l'origine du clie
   Ukraine urbain dense, USV Méditerranée). Débit utile, masquage GEO, disponibilité LEO
   et service recommandé, calculés en direct.
 - `client/coverage3d.html` — globe **CesiumJS** avec **TLE réels** (Celestrak : Syracuse 4A/4B,
-  Inmarsat 5/GX5/6, 364 sats Amazon Kuiper). Affiche les empreintes de couverture GEO
-  (cap d'élévation) et LEO, anime la constellation et le **satellite servant / les handovers**
-  (via `/scenario` avec les TLE), avec le graphe de scénario synchronisé sous le globe.
-  Imagerie **Esri World Imagery** (satellite photoréel, sans token) ; renseigner `MAPBOX_TOKEN`
-  en tête de script pour l'imagerie Mapbox `satellite-streets-v12` identique aux autres apps.
-  Timeline moderne : lecture/pause, **coefficient de vitesse**, **sélecteur de date/heure**
-  (re-propagation), et graphe scrubbable (clic/glisser pour naviguer).
+  Inmarsat 5/GX5/6, 364 Amazon Kuiper, ~400 **Starlink** coquille 53°). Empreintes de couverture
+  GEO (cap d'élévation) et LEO, animation de la constellation et **satellite servant / handovers**
+  (via `/scenario` avec les TLE), graphe de scénario synchronisé. Sélecteur **service LEO**
+  (Kuiper / Starlink) qui pilote l'animation et le moteur.
+  - Imagerie : **base Natural Earth garantie** (CDN Cesium) + calque **satellite photoréel**
+    (Esri World Imagery, sans token) ; champ token Mapbox dans l'UI (persisté en `localStorage`)
+    pour l'imagerie `satellite-streets-v12` identique aux autres apps. Indicateur d'état d'imagerie.
+  - Timeline moderne : lecture/pause, **coefficient de vitesse**, **sélecteur de date/heure**
+    (re-propagation), graphe scrubbable (clic/glisser).
+  - **Fiche satellite au clic** (façon panopticon) : photo + résumé Wikipédia, NORAD, désignation
+    internationale, bande/orbite, altitude, inclinaison, période, vitesse, position et élévation live.
 
 ## Statut de validation
 
