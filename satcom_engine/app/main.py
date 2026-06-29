@@ -46,6 +46,19 @@ def scenario(req: ScenarioRequest):
     return engine.run_leo_scenario(req)
 
 
+@app.get("/mapbox-config.json", include_in_schema=False)
+def mapbox_config():
+    """Token + style Mapbox injectes depuis les variables d'env Cloud Run
+    (hors-depot). Le client coverage3d.html les lit a la meme origine ;
+    sinon il retombe sur Esri World Imagery (sans token)."""
+    tok = os.environ.get("MAPBOX_TOKEN", "")
+    if not tok:
+        return {}
+    return {"token": tok,
+            "username": os.environ.get("MAPBOX_USER", "mapbox"),
+            "styleId": os.environ.get("MAPBOX_STYLE", "satellite-streets-v12")}
+
+
 # --- Clients web statiques (timeline / scenarios / coverage3d) ---
 # Montes a /ui ; meme origine que l'API (pas de CORS pour les clients servis ici).
 _CLIENT_DIR = os.path.join(os.path.dirname(__file__), "..", "client")

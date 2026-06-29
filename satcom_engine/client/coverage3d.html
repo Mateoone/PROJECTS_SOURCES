@@ -158,7 +158,7 @@ const WIKI={SYRACUSE:{fam:"Syracuse · militaire X (GEO)",term:"Syracuse (satell
 const $=id=>document.getElementById(id);
 
 // ---------- imagerie : base garantie (Natural Earth) + calque photo-reel ----------
-let mbxToken = localStorage.getItem("satcom_mapbox_token") || "";
+let mbxToken="", mbxUser="mapbox", mbxStyle="satellite-streets-v12";
 const baseLayer = Cesium.ImageryLayer.fromProviderAsync(
   Cesium.TileMapServiceImageryProvider.fromUrl(Cesium.buildModuleUrl("Assets/Textures/NaturalEarthII")), {});
 const viewer = new Cesium.Viewer("cesium", {
@@ -176,7 +176,7 @@ function setImgStatus(lbl,col){ $("img_lbl").textContent=lbl; $("img_dot").style
 function loadPhotoImagery(){
   if(photoLayer){ viewer.imageryLayers.remove(photoLayer,true); photoLayer=null; }
   let prov, lbl;
-  if(mbxToken){ prov=new Cesium.MapboxStyleImageryProvider({username:"mapbox",styleId:"satellite-streets-v12",accessToken:mbxToken,scaleFactor:true}); lbl="Mapbox satellite"; }
+  if(mbxToken){ prov=new Cesium.MapboxStyleImageryProvider({username:mbxUser,styleId:mbxStyle,accessToken:mbxToken,scaleFactor:true}); lbl="Mapbox · "+(mbxStyle==="satellite-streets-v12"?"satellite":mbxStyle.slice(0,10)); }
   else { prov=new Cesium.UrlTemplateImageryProvider({url:"https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",maximumLevel:18}); lbl="Esri World Imagery"; }
   setImgStatus("chargement "+lbl+"…","#e3c46b");
   let ok=false;
@@ -186,8 +186,16 @@ function loadPhotoImagery(){
   // marque OK des qu'une tuile est rendue
   const off=viewer.scene.postRender.addEventListener(()=>{ if(viewer.scene.globe.tilesLoaded){ ok=true; setImgStatus(lbl+" ✓","#2ee6a6"); off(); } });
 }
-loadPhotoImagery();
-$("mbx_go").onclick=()=>{ const v=$("mbx").value.trim(); mbxToken=v; if(v) localStorage.setItem("satcom_mapbox_token",v); else localStorage.removeItem("satcom_mapbox_token"); loadPhotoImagery(); };
+// Config injectee par le serveur (token/style hors-depot, via variables d'env Cloud Run).
+async function initImagery(){
+  try{ const r=await fetch("/mapbox-config.json"); if(r.ok){ const c=await r.json();
+    if(c&&c.token){ mbxToken=c.token; mbxUser=c.username||"mapbox"; mbxStyle=c.styleId||"satellite-streets-v12"; $("mbx").placeholder="token Mapbox actif (serveur)"; } } }catch(e){}
+  if(!mbxToken){ const t=localStorage.getItem("satcom_mapbox_token"); if(t) mbxToken=t; }
+  loadPhotoImagery();
+}
+initImagery();
+$("mbx_go").onclick=()=>{ const v=$("mbx").value.trim(); mbxToken=v; mbxUser="mapbox"; mbxStyle="satellite-streets-v12";
+  if(v) localStorage.setItem("satcom_mapbox_token",v); else localStorage.removeItem("satcom_mapbox_token"); loadPhotoImagery(); };
 
 // ---------- horloge ----------
 let start=Cesium.JulianDate.fromIso8601(C.start), stop=Cesium.JulianDate.addSeconds(start,C.dur,new Cesium.JulianDate()), startMs=Date.parse(C.start);
