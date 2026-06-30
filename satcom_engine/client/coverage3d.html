@@ -46,11 +46,19 @@
   #qscenario{position:absolute;left:50%;top:52px;transform:translateX(-50%);z-index:6;display:none;max-width:760px;
        background:rgba(12,13,18,.86);border:1px solid var(--line);border-radius:11px;padding:8px 13px;backdrop-filter:blur(5px);text-align:center}
   #qscenario.on{display:block}
-  #qscenario .qt{font-size:12px;font-weight:700;color:var(--accent);margin-bottom:6px}
-  #qscenario .qt b{color:var(--ink)}
+  #qscenario .qt{display:flex;align-items:center;gap:10px;font-size:12px;font-weight:700;color:var(--accent);margin-bottom:6px}
+  #qscenario .qttl{flex:1;text-align:center} #qscenario .qttl b{color:var(--ink)}
+  #qscenario .qlink{font-size:11px;color:var(--muted);text-decoration:none;font-weight:600;white-space:nowrap}
+  #qscenario .qlink:hover{color:var(--accent)}
+  #qscenario .qx{background:transparent;border:1px solid var(--line);color:var(--muted);border-radius:6px;width:22px;height:22px;cursor:pointer;font-size:15px;line-height:1;flex:none}
+  #qscenario .qx:hover{color:var(--ink)}
   #qscenario .qrow{display:flex;gap:6px;flex-wrap:wrap;justify-content:center}
   #qscenario .qchip{font-size:11px;color:var(--muted);background:#0f1015;border:1px solid var(--line);border-radius:7px;padding:3px 9px}
   #qscenario .qchip b{color:var(--ink);font-weight:600}
+  #qs_pill{position:absolute;left:50%;top:52px;transform:translateX(-50%);z-index:6;display:none;
+       background:rgba(12,13,18,.84);border:1px solid var(--line);border-radius:9px;padding:5px 12px;
+       font:700 11.5px system-ui;color:var(--accent);cursor:pointer;backdrop-filter:blur(5px)}
+  #qs_pill.on{display:block}
 
   /* fiche satellite (clic) */
   #satpanel{position:absolute;right:12px;top:12px;width:300px;z-index:6;background:rgba(10,14,16,.94);
@@ -140,7 +148,12 @@
   <div id="globe">
     <div id="cesium"></div>
     <nav id="nav"><a href="brief.html">Qualification</a><a href="coverage3d.html" class="on">Couverture 3D</a><a href="scenarios.html">4 scénarios</a></nav>
-    <div id="qscenario"><div class="qt">Scénario qualifié — <b id="qs_name">—</b></div><div class="qrow" id="qs_chips"></div></div>
+    <div id="qscenario">
+      <div class="qt"><a class="qlink" id="qs_back" href="brief.html">← Qualification</a>
+        <span class="qttl">Scénario qualifié — <b id="qs_name">—</b></span>
+        <button class="qx" id="qs_hide" aria-label="Masquer" title="Masquer">−</button></div>
+      <div class="qrow" id="qs_chips"></div></div>
+    <button id="qs_pill">Scénario qualifié ▾</button>
     <div id="satpanel">
       <div class="ph"><video id="sp_vid" muted loop playsinline preload="metadata" style="display:none"></video><img id="sp_img" alt="" style="display:none"><span class="noimg" id="sp_noimg">🛰</span>
         <div class="hd"><div class="nm" id="sp_name">—</div><div class="fm" id="sp_fam"></div></div>
@@ -285,6 +298,7 @@ function makeCap(c){ const col=Cesium.Color.fromCssColorString(c);
            setVisible(v){ fill.show=v; rim.show=v; } }; }
 const capX=makeCap(COL.X), capKa=makeCap(COL.Ka);
 let activeSite=null, servedArr=[], maskNow=10;
+let qsActive=false, QUALIF={};
 const curSec=()=>Cesium.JulianDate.secondsDifference(viewer.clock.currentTime,start);
 function servedNameAt(t){ if(!servedArr.length) return null; const k=Math.max(0,Math.min(servedArr.length-1,Math.floor(t/C.stepe))); return servedArr[k]; }
 function servedRing(){ const nm=servedNameAt(curSec()), s=nm&&LEOSET.byName[nm]; if(!s) return null;
@@ -331,6 +345,7 @@ async function selectSite(site,fly=true){
     $("c_av").textContent=sc.availability_pct+" %"; $("c_ho").textContent=sc.handover_count; renderGraph(sc); renderHandovers(sc.handovers);
   }catch(e){ $("err").textContent="Moteur indisponible : "+e.message; }
   updateReadouts(curSec());
+  renderQS();
 }
 async function geoCN(geoSat,site,p,termGt){
   const d=await post("/link",{site:{name:site.name,lat_deg:site.lat,lon_deg:site.lon,elevation_mask_deg:site.mask},
@@ -504,22 +519,30 @@ const _q=new URLSearchParams(location.search);
 if(_q.has("lat")&&_q.has("lon")){
   SITES.unshift({name:_q.get("name")||"Zone client", lat:+_q.get("lat"), lon:+_q.get("lon"),
     mask:+(_q.get("mask")||10), gt:+(_q.get("gt")||10.8), label:"Zone client — depuis la qualification"});
-  // panneau "scenario qualifie" (sous le menu central)
+  // panneau "scenario qualifie" : repliable + mis a jour avec le segment / service 3D
   const g=k=>_q.get(k);
-  $("qs_name").textContent = g("name")||"Zone client";
-  const ch=[];
-  if(g("band")) ch.push(["Bande", g("band")]);
-  if(g("usage")) ch.push(["Service", g("usage")+(g("rate")?" · "+g("rate")+" Mbps":"")]);
-  if(g("orbit")) ch.push(["Orbite reco", g("orbit")]);
-  if(g("ant")) ch.push(["Antenne", g("ant")]);
-  if(g("platform")) ch.push(["Plateforme", g("platform")]);
-  if(g("mission")) ch.push(["Mission", g("mission")]);
-  ch.push(["Masque", (g("mask")||"10")+"°"]);
-  ch.push(["G/T", (g("gt")||"10.8")+" dB/K"]);
-  if(g("rain")) ch.push(["Pluie est.", g("rain")+" dB"]);
-  $("qs_chips").innerHTML = ch.map(([k,v])=>`<span class="qchip">${k} <b>${v}</b></span>`).join("");
+  qsActive=true;
+  QUALIF={ band:g("band"), usage:g("usage"), rate:g("rate"), orbit:g("orbit"), ant:g("ant"),
+           platform:g("platform"), mission:g("mission"), rain:g("rain") };
   $("qscenario").classList.add("on");
 }
+function renderQS(){
+  if(!qsActive) return;
+  $("qs_name").textContent = activeSite ? activeSite.name : "Zone client";
+  const Q=QUALIF, ch=[];
+  if(Q.band)     ch.push(["Bande", Q.band]);
+  if(Q.usage)    ch.push(["Service", Q.usage+(Q.rate?" · "+Q.rate+" Mbps":"")]);
+  if(Q.orbit)    ch.push(["Orbite reco", Q.orbit]);
+  if(Q.ant)      ch.push(["Antenne", Q.ant]);
+  if(Q.platform) ch.push(["Plateforme", Q.platform]);
+  if(Q.mission)  ch.push(["Mission", Q.mission]);
+  ch.push(["LEO actif", LEOSET.key==="starlink"?"Starlink":"Kuiper"]);
+  if(activeSite){ ch.push(["Masque", activeSite.mask+"°"]); ch.push(["G/T", activeSite.gt+" dB/K"]); }
+  if(Q.rain)     ch.push(["Pluie est.", Q.rain+" dB"]);
+  $("qs_chips").innerHTML = ch.map(([k,v])=>`<span class="qchip">${k} <b>${v}</b></span>`).join("");
+}
+$("qs_hide").onclick=()=>{ $("qscenario").classList.remove("on"); $("qs_pill").classList.add("on"); };
+$("qs_pill").onclick=()=>{ $("qs_pill").classList.remove("on"); $("qscenario").classList.add("on"); };
 SITES.forEach((s,i)=>sel.add(new Option(s.name+" — "+s.label.split(" — ")[0],i)));
 sel.onchange=()=>selectSite(SITES[+sel.value]);
 const _def=_q.has("lat")?0:1; sel.value=String(_def); selectSite(SITES[_def]);
