@@ -265,6 +265,7 @@ function orbitReco(el, mask){
 let lastCtx=null, lastEst=null;
 async function run(){
   $("run").disabled=true; $("run").textContent="Calcul…"; $("err").textContent="";
+  saveForm();
   const base=API_DEFAULT;
   const z=currentGeo();
   const band=pickBand(), bp=BAND[band];
@@ -322,11 +323,17 @@ async function run(){
   $("run").disabled=false; $("run").textContent="Estimer";
 }
 
+// Persistance du brief (aller-retour Qualification <-> Couverture 3D)
+const FORM_FIELDS=["country","coverage","platform","qty","mission","env","band","usage","rate","antmax","operator","satlon","eirp","satgt","sfd","ibo","lbdone","modem"];
+function saveForm(){ const o={}; FORM_FIELDS.forEach(id=>{ const el=$(id); if(el) o[id]=el.value; }); try{ localStorage.setItem("satcom_brief", JSON.stringify(o)); }catch(e){} }
+function restoreForm(){ try{ const o=JSON.parse(localStorage.getItem("satcom_brief")||"{}"); FORM_FIELDS.forEach(id=>{ if(o[id]!==undefined){ const el=$(id); if(el) el.value=o[id]; } }); }catch(e){} }
+
 // usage -> débit par défaut
 $("usage").addEventListener("change", e=>{ $("rate").value = USAGE_RATE[e.target.value]; });
 
 $("run").addEventListener("click", run);
 $("toCov").addEventListener("click", ()=>{
+  saveForm();
   const z=currentGeo(), mask=maskOf();
   const p={ name:z.name, lat:z.lat, lon:z.lon, mask:mask, gt:lastCtx?lastCtx.gt:10.8, band:pickBand(),
             usage:$("usage").selectedOptions[0].text, rate:$("rate").value,
@@ -334,8 +341,8 @@ $("toCov").addEventListener("click", ()=>{
   if(lastEst){ p.orbit=lastEst.orbit; p.ant=lastEst.ant; p.rain=lastEst.rain; }
   location.href="coverage3d.html?"+new URLSearchParams(p).toString();
 });
-$("toScen").addEventListener("click", ()=> location.href="scenarios.html");
-syncZoneInfo(); run();
+$("toScen").addEventListener("click", ()=>{ saveForm(); location.href="scenarios.html"; });
+restoreForm(); syncZoneInfo(); run();
 </script>
 </body>
 </html>
