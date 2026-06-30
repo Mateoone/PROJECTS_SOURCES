@@ -52,7 +52,7 @@
 </head>
 <body>
 <div class="wrap">
-  <nav class="topnav"><a href="coverage3d.html">Couverture 3D</a><a href="scenarios.html">4 scénarios</a><a href="brief.html" class="on">Qualification</a></nav>
+  <nav class="topnav"><a href="brief.html" class="on">Qualification</a><a href="coverage3d.html">Couverture 3D</a><a href="scenarios.html">4 scénarios</a></nav>
   <h1>Qualification client &amp; estimation rapide</h1>
   <p class="sub">Saisis les réponses aux questions clés ; l'outil propose une <b>bande</b>, une <b>orbite</b>, une <b>classe d'antenne</b>
   et un <b>bilan de liaison</b> indicatif (moteur SATCOM), puis pousse la géographie vers la Couverture 3D.</p>
@@ -60,14 +60,15 @@
   <div class="grid">
     <!-- ====== Formulaire ====== -->
     <div class="card">
-      <fieldset><legend>Contexte &amp; zone</legend>
-        <div class="row2">
-          <div><label>Pays de l'utilisateur final</label><input id="country" placeholder="ex. France" value=""></div>
-          <div><label>Zone d'opération</label>
-            <select id="zone"></select></div>
+      <fieldset><legend>Contexte — utilisateur final</legend>
+        <label>Pays de l'utilisateur final <span class="hint">— autocomplétion ; positionne la Couverture 3D &amp; sert au contrôle export</span></label>
+        <input id="country" list="countries" placeholder="Tape un pays… ex. France" autocomplete="off">
+        <datalist id="countries"></datalist>
+        <div class="row2" style="margin-top:9px">
+          <div><label>Couverture requise</label>
+            <select id="coverage"><option value="local">Locale (théâtre)</option><option value="regional" selected>Régionale</option><option value="global">Globale</option></select></div>
+          <div><label>Zone retenue (auto)</label><input id="zoneInfo" readonly placeholder="—"></div>
         </div>
-        <label>Couverture requise</label>
-        <select id="coverage"><option value="local">Locale (théâtre)</option><option value="regional" selected>Régionale</option><option value="global">Globale</option></select>
       </fieldset>
 
       <fieldset><legend>Plateforme &amp; mission</legend>
@@ -165,19 +166,45 @@ const API_DEFAULT = "https://satcom-coverage-engine-58899663812.europe-west9.run
 const Re=6378.137, H_GEO=35786;
 const $ = id => document.getElementById(id);
 
-// Zones -> site représentatif + pluie R0.01 (mm/h)
-const ZONES = [
-  {key:"eu",  label:"Europe",                 lat:48.85, lon:2.35,  rain:30},
-  {key:"seu", label:"Europe du Sud",          lat:41.90, lon:12.50, rain:40},
-  {key:"med", label:"Méditerranée orientale", lat:34.00, lon:33.00, rain:35},
-  {key:"gulf",label:"Golfe / Moyen-Orient",   lat:24.45, lon:54.30, rain:20},
-  {key:"afr", label:"Afrique (Sahel)",        lat:14.00, lon:0.00,  rain:50},
-  {key:"asia",label:"Asie (Sud / mousson)",   lat:18.00, lon:78.00, rain:60},
-  {key:"am",  label:"Amériques",              lat:39.00, lon:-98.0, rain:35},
-  {key:"glob",label:"Global",                 lat:45.00, lon:0.00,  rain:40},
+// Pays -> géométrie (lat, lon capitale) + pluie R0.01 (mm/h, par climat)
+const COUNTRIES = [
+  ["France",48.85,2.35,30],["Royaume-Uni",51.51,-0.13,30],["Allemagne",52.52,13.40,30],
+  ["Espagne",40.42,-3.70,35],["Italie",41.90,12.50,38],["Portugal",38.72,-9.14,35],
+  ["Belgique",50.85,4.35,32],["Pays-Bas",52.37,4.90,32],["Suisse",46.95,7.45,33],
+  ["Autriche",48.21,16.37,32],["Pologne",52.23,21.01,30],["Ukraine",50.45,30.52,30],
+  ["Roumanie",44.43,26.10,33],["Grèce",37.98,23.73,38],["Suède",59.33,18.07,25],
+  ["Norvège",59.91,10.75,28],["Finlande",60.17,24.94,25],["Danemark",55.68,12.57,28],
+  ["Irlande",53.35,-6.26,32],["Croatie",45.81,15.98,38],["Serbie",44.79,20.45,33],
+  ["Turquie",39.93,32.86,30],["Chypre",35.19,33.36,35],
+  ["Émirats arabes unis",24.45,54.37,20],["Arabie saoudite",24.71,46.68,15],["Qatar",25.29,51.53,18],
+  ["Koweït",29.38,47.99,15],["Bahreïn",26.23,50.59,18],["Oman",23.59,58.41,20],
+  ["Israël",31.78,35.22,30],["Jordanie",31.95,35.93,20],["Liban",33.89,35.50,35],
+  ["Irak",33.31,44.36,18],["Iran",35.69,51.39,22],["Égypte",30.04,31.24,12],
+  ["Maroc",34.02,-6.83,30],["Algérie",36.75,3.06,32],["Tunisie",36.80,10.18,35],
+  ["Libye",32.89,13.19,20],["Mali",12.64,-8.00,45],["Niger",13.51,2.11,40],
+  ["Tchad",12.13,15.06,40],["Sénégal",14.69,-17.44,50],["Nigeria",9.06,7.49,55],
+  ["Côte d'Ivoire",5.35,-4.00,60],["Kenya",-1.29,36.82,50],["Éthiopie",9.03,38.74,45],
+  ["Djibouti",11.59,43.15,20],["Afrique du Sud",-25.75,28.19,35],["RDC",-4.32,15.31,65],
+  ["Inde",28.61,77.21,60],["Pakistan",33.69,73.06,40],["Afghanistan",34.56,69.21,25],
+  ["Chine",39.90,116.40,40],["Japon",35.68,139.69,50],["Corée du Sud",37.57,126.98,50],
+  ["Indonésie",-6.21,106.85,70],["Philippines",14.60,120.98,65],["Vietnam",21.03,105.85,60],
+  ["Thaïlande",13.76,100.50,65],["Singapour",1.35,103.82,70],["Malaisie",3.14,101.69,70],
+  ["Australie",-35.28,149.13,35],["Kazakhstan",51.17,71.43,25],
+  ["États-Unis",38.90,-77.04,38],["Canada",45.42,-75.70,30],["Mexique",19.43,-99.13,45],
+  ["Brésil",-15.79,-47.88,55],["Argentine",-34.60,-58.38,38],["Colombie",4.71,-74.07,60],
+  ["Chili",-33.45,-70.67,30],["Nouvelle-Zélande",-41.29,174.78,35],
 ];
-ZONES.forEach((z,i)=>$("zone").add(new Option(z.label,i)));
-$("zone").value="0";
+const DEFAULT_GEO = {name:"France", lat:48.85, lon:2.35, rain:30};
+(function(){ const dl=$("countries"); COUNTRIES.forEach(c=>{ const o=document.createElement("option"); o.value=c[0]; dl.appendChild(o); }); })();
+function currentGeo(){
+  const v=$("country").value.trim().toLowerCase();
+  if(!v) return DEFAULT_GEO;
+  let m=COUNTRIES.find(c=>c[0].toLowerCase()===v) || (v.length>=3 && COUNTRIES.find(c=>c[0].toLowerCase().startsWith(v)));
+  return m ? {name:m[0], lat:m[1], lon:m[2], rain:m[3]} : DEFAULT_GEO;
+}
+function syncZoneInfo(){ const g=currentGeo();
+  $("zoneInfo").value = `${g.name} · ${g.lat.toFixed(1)}, ${g.lon.toFixed(1)} · pluie ${g.rain} mm/h`; }
+$("country").addEventListener("input", syncZoneInfo);
 
 const USAGE_RATE = { voice:0.064, image:0.256, data:2, visio:4, video:8 };
 const BAND = {
@@ -214,7 +241,7 @@ function pickBand(){
   const b=$("band").value;
   if(b!=="auto") return b;
   // auto : data rate + pluie zone -> Ka si fort débit & pluie modérée, sinon Ku, L si très faible débit
-  const rate=+$("rate").value, z=ZONES[+$("zone").value];
+  const rate=+$("rate").value, z=currentGeo();
   if(rate<=0.1) return "L";
   if(rate>=2 && z.rain<=35) return "Ka";
   return "Ku";
@@ -239,7 +266,7 @@ let lastCtx=null;
 async function run(){
   $("run").disabled=true; $("run").textContent="Calcul…"; $("err").textContent="";
   const base=API_DEFAULT;
-  const z=ZONES[+$("zone").value];
+  const z=currentGeo();
   const band=pickBand(), bp=BAND[band];
   const mask=maskOf();
   const satLon = $("satlon").value!=="" ? +$("satlon").value : z.lon; // défaut : meilleure (sous-satellite)
@@ -257,7 +284,7 @@ async function run(){
   try{
     const sweep=[];
     for(const a of ANTENNAS){
-      const d=await post(base,{ site:{name:z.label,lat_deg:z.lat,lon_deg:z.lon,elevation_mask_deg:mask},
+      const d=await post(base,{ site:{name:z.name,lat_deg:z.lat,lon_deg:z.lon,elevation_mask_deg:mask},
         terminal:{gt_dbk:a.gt}, carrier:{uplink_mhz:bp.up,downlink_mhz:bp.down},
         satellite_geo:{name:"sat",longitude_deg:satLon,eirp_dbw:sat.eirp,gt_dbk:sat.gt,transponder_bw_mhz:72,sfd_dbw_m2:sat.sfd,input_backoff_db:sat.ibo},
         rain_margin_db: rain });
@@ -282,7 +309,7 @@ async function run(){
       `<td class="r">${s.a.gt<=antMax?(s.thr>=rate?'<span class="tag t-ok">OK</span>':'<span class="tag t-bad">&lt; '+rate+'</span>'):'<span class="tag t-warn">hors contrainte</span>'}</td></tr>`).join("")+'</table>';
 
     const ant = reco? reco.a.label : (orbit.orbit.includes("LEO")?"constellation LEO":"antenne plus grande");
-    $("syn").innerHTML = `Zone <b>${z.label}</b> (él. GEO ~${el.toFixed(0)}°). Pour <b>${$("usage").selectedOptions[0].text}</b> à `+
+    $("syn").innerHTML = `Zone <b>${z.name}</b> (él. GEO ~${el.toFixed(0)}°). Pour <b>${$("usage").selectedOptions[0].text}</b> à `+
       `<b>${rate} Mbps</b> en bande <b>${band}</b>, orbite recommandée : <b>${orbit.orbit}</b> (${orbit.why}). `+
       `Antenne pressentie : <b>${ant}</b>. Pluie 0,01 % : ~${rain.toFixed(1)} dB`+
       (band==="Ka"&&rain>6?` — fading Ka important, prévoir marge ACM ou repli bande basse/X.`:`.`)+
@@ -299,12 +326,12 @@ $("usage").addEventListener("change", e=>{ $("rate").value = USAGE_RATE[e.target
 
 $("run").addEventListener("click", run);
 $("toCov").addEventListener("click", ()=>{
-  const z=ZONES[+$("zone").value], mask=maskOf();
-  const q=new URLSearchParams({ name:z.label, lat:z.lat, lon:z.lon, mask:mask, gt:lastCtx?lastCtx.gt:10.8, band:pickBand() });
+  const z=currentGeo(), mask=maskOf();
+  const q=new URLSearchParams({ name:z.name, lat:z.lat, lon:z.lon, mask:mask, gt:lastCtx?lastCtx.gt:10.8, band:pickBand() });
   location.href="coverage3d.html?"+q.toString();
 });
 $("toScen").addEventListener("click", ()=> location.href="scenarios.html");
-run();
+syncZoneInfo(); run();
 </script>
 </body>
 </html>
