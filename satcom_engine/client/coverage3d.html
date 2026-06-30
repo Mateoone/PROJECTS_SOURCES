@@ -42,6 +42,15 @@
        background:rgba(12,13,18,.82);border:1px solid var(--line);border-radius:10px;padding:4px;backdrop-filter:blur(4px)}
   #nav a{font-size:12.5px;color:var(--muted);text-decoration:none;padding:5px 13px;border-radius:7px;font-weight:600}
   #nav a.on{background:var(--accent);color:#fff} #nav a:hover{color:var(--ink)}
+  /* panneau scenario qualifie (sous le menu central) */
+  #qscenario{position:absolute;left:50%;top:52px;transform:translateX(-50%);z-index:6;display:none;max-width:760px;
+       background:rgba(12,13,18,.86);border:1px solid var(--line);border-radius:11px;padding:8px 13px;backdrop-filter:blur(5px);text-align:center}
+  #qscenario.on{display:block}
+  #qscenario .qt{font-size:12px;font-weight:700;color:var(--accent);margin-bottom:6px}
+  #qscenario .qt b{color:var(--ink)}
+  #qscenario .qrow{display:flex;gap:6px;flex-wrap:wrap;justify-content:center}
+  #qscenario .qchip{font-size:11px;color:var(--muted);background:#0f1015;border:1px solid var(--line);border-radius:7px;padding:3px 9px}
+  #qscenario .qchip b{color:var(--ink);font-weight:600}
 
   /* fiche satellite (clic) */
   #satpanel{position:absolute;right:12px;top:12px;width:300px;z-index:6;background:rgba(10,14,16,.94);
@@ -131,6 +140,7 @@
   <div id="globe">
     <div id="cesium"></div>
     <nav id="nav"><a href="brief.html">Qualification</a><a href="coverage3d.html" class="on">Couverture 3D</a><a href="scenarios.html">4 scénarios</a></nav>
+    <div id="qscenario"><div class="qt">Scénario qualifié — <b id="qs_name">—</b></div><div class="qrow" id="qs_chips"></div></div>
     <div id="satpanel">
       <div class="ph"><video id="sp_vid" muted loop playsinline preload="metadata" style="display:none"></video><img id="sp_img" alt="" style="display:none"><span class="noimg" id="sp_noimg">🛰</span>
         <div class="hd"><div class="nm" id="sp_name">—</div><div class="fm" id="sp_fam"></div></div>
@@ -494,6 +504,21 @@ const _q=new URLSearchParams(location.search);
 if(_q.has("lat")&&_q.has("lon")){
   SITES.unshift({name:_q.get("name")||"Zone client", lat:+_q.get("lat"), lon:+_q.get("lon"),
     mask:+(_q.get("mask")||10), gt:+(_q.get("gt")||10.8), label:"Zone client — depuis la qualification"});
+  // panneau "scenario qualifie" (sous le menu central)
+  const g=k=>_q.get(k);
+  $("qs_name").textContent = g("name")||"Zone client";
+  const ch=[];
+  if(g("band")) ch.push(["Bande", g("band")]);
+  if(g("usage")) ch.push(["Service", g("usage")+(g("rate")?" · "+g("rate")+" Mbps":"")]);
+  if(g("orbit")) ch.push(["Orbite reco", g("orbit")]);
+  if(g("ant")) ch.push(["Antenne", g("ant")]);
+  if(g("platform")) ch.push(["Plateforme", g("platform")]);
+  if(g("mission")) ch.push(["Mission", g("mission")]);
+  ch.push(["Masque", (g("mask")||"10")+"°"]);
+  ch.push(["G/T", (g("gt")||"10.8")+" dB/K"]);
+  if(g("rain")) ch.push(["Pluie est.", g("rain")+" dB"]);
+  $("qs_chips").innerHTML = ch.map(([k,v])=>`<span class="qchip">${k} <b>${v}</b></span>`).join("");
+  $("qscenario").classList.add("on");
 }
 SITES.forEach((s,i)=>sel.add(new Option(s.name+" — "+s.label.split(" — ")[0],i)));
 sel.onchange=()=>selectSite(SITES[+sel.value]);

@@ -262,7 +262,7 @@ function orbitReco(el, mask){
   return {orbit:"GEO", why:"zone régionale, plateforme peu mobile, élévation suffisante"};
 }
 
-let lastCtx=null;
+let lastCtx=null, lastEst=null;
 async function run(){
   $("run").disabled=true; $("run").textContent="Calcul…"; $("err").textContent="";
   const base=API_DEFAULT;
@@ -309,6 +309,7 @@ async function run(){
       `<td class="r">${s.a.gt<=antMax?(s.thr>=rate?'<span class="tag t-ok">OK</span>':'<span class="tag t-bad">&lt; '+rate+'</span>'):'<span class="tag t-warn">hors contrainte</span>'}</td></tr>`).join("")+'</table>';
 
     const ant = reco? reco.a.label : (orbit.orbit.includes("LEO")?"constellation LEO":"antenne plus grande");
+    lastEst = { band, orbit:orbit.orbit, ant, rate, usage:$("usage").selectedOptions[0].text, el:el.toFixed(0), rain:rain.toFixed(1), feas:feasGeo };
     $("syn").innerHTML = `Zone <b>${z.name}</b> (él. GEO ~${el.toFixed(0)}°). Pour <b>${$("usage").selectedOptions[0].text}</b> à `+
       `<b>${rate} Mbps</b> en bande <b>${band}</b>, orbite recommandée : <b>${orbit.orbit}</b> (${orbit.why}). `+
       `Antenne pressentie : <b>${ant}</b>. Pluie 0,01 % : ~${rain.toFixed(1)} dB`+
@@ -327,8 +328,11 @@ $("usage").addEventListener("change", e=>{ $("rate").value = USAGE_RATE[e.target
 $("run").addEventListener("click", run);
 $("toCov").addEventListener("click", ()=>{
   const z=currentGeo(), mask=maskOf();
-  const q=new URLSearchParams({ name:z.name, lat:z.lat, lon:z.lon, mask:mask, gt:lastCtx?lastCtx.gt:10.8, band:pickBand() });
-  location.href="coverage3d.html?"+q.toString();
+  const p={ name:z.name, lat:z.lat, lon:z.lon, mask:mask, gt:lastCtx?lastCtx.gt:10.8, band:pickBand(),
+            usage:$("usage").selectedOptions[0].text, rate:$("rate").value,
+            mission:$("mission").selectedOptions[0].text, platform:$("platform").selectedOptions[0].text };
+  if(lastEst){ p.orbit=lastEst.orbit; p.ant=lastEst.ant; p.rain=lastEst.rain; }
+  location.href="coverage3d.html?"+new URLSearchParams(p).toString();
 });
 $("toScen").addEventListener("click", ()=> location.href="scenarios.html");
 syncZoneInfo(); run();
