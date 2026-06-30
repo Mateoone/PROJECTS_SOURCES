@@ -3,7 +3,8 @@
 #   - dev.mip.unreal.streamDeckPlugin   (the plugin, ws bundled)
 #   - UnrealBridge.streamDeckProfile    (the 5-button profile)
 #
-# Usage:  ./tools/build.sh [deviceModel]   (deviceModel forwarded to make_profile.js)
+# Usage:  ./tools/build.sh
+# (profile device/model/metadata are constants in tools/make_profile.js -> ENV)
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -20,7 +21,7 @@ rm -f "$DIST/dev.mip.unreal.streamDeckPlugin"
 ( cd "$PLUGIN_DIR" && zip -rqX "$DIST/dev.mip.unreal.streamDeckPlugin" "$SDPLUGIN" -x "*/.DS_Store" )
 
 echo "==> Generating .streamDeckProfile"
-node "$ROOT/tools/make_profile.js" "${1:-20GBA9901}"
+node "$ROOT/tools/make_profile.js"
 
 echo "==> Done:"
 ls -lh "$DIST"

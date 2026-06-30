@@ -23,17 +23,22 @@ L'action **Trigger UE Event** apparaît alors dans la catégorie *Unreal Bridge*
 Double-cliquer `UnrealBridge.streamDeckProfile` → l'app importe le profil **Unreal Bridge**.
 Il le sélectionne (sinon, choisis-le dans le sélecteur de profils de l'app).
 
-Les 5 boutons (rangée du haut) sont mappés sur la démo `StreamDeckDemoActor` :
+Les 5 boutons (rangée du haut) sont mappés sur la démo `StreamDeckDemoActor`, déjà configurés
+(host `127.0.0.1`, port `5051`) et différenciés par leur **titre** :
 
-| Touche | Image | Action | Payload | Effet UE |
+| Touche | Titre | Action | Payload | Effet UE |
 |---|---|---|---|---|
-| 1 | bt_01 | `Color` | `{"r":1,"g":0,"b":0}` | cube rouge |
-| 2 | bt_02 | `Color` | `{"r":0,"g":0.4,"b":1}` | cube bleu |
-| 3 | bt_03 | `Scale` | `{"value":2.0}` | échelle ×2 |
-| 4 | bt_04 | `Spin` | *(vide)* | toggle rotation |
-| 5 | bt_05 | `Reset` | *(vide)* | reset |
+| 1 | Red | `Color` | `{"r":1,"g":0,"b":0}` | cube rouge |
+| 2 | Blue | `Color` | `{"r":0,"g":0.4,"b":1}` | cube bleu |
+| 3 | Scale x2 | `Scale` | `{"value":2.0}` | échelle ×2 |
+| 4 | Spin | `Spin` | *(vide)* | toggle rotation |
+| 5 | Reset | `Reset` | *(vide)* | reset |
 
-Host `127.0.0.1`, port `5051` sur chaque touche (modifiable dans le Property Inspector).
+> **Images** : les 5 touches affichent l'icône par défaut du plugin (la « TV verte »), pas les
+> `bt_01..05`. Le format d'export 7.5 dont je dispose ne contenait pas d'image personnalisée, donc
+> je ne connais pas encore son encodage. Pour des icônes distinctes : pose-les à la main après
+> import (10 s/touche), ou exporte-moi un profil où tu as mis **une** image custom sur une touche
+> et je l'intègre au générateur.
 
 ## 3. Côté Unreal
 
@@ -47,25 +52,26 @@ puis appuyer sur les boutons.
 
 ```bash
 cd streamdeck-unreal
-./tools/build.sh                 # MK.2 par défaut (20GBA9901)
-./tools/build.sh 20GAA9901       # Stream Deck 15 touches V1/V2
-./tools/build.sh 20GAT9901       # Stream Deck XL
-./tools/build.sh 20GAM9901       # Stream Deck Mini
-./tools/build.sh 20GBD9901       # Stream Deck +
+./tools/build.sh        # construit le .streamDeckPlugin + le .streamDeckProfile
 ```
+
+Le modèle d'appareil et les métadonnées 7.5 (`DeviceModel`, `DeviceUUID`, `AppVersion`…) sont en
+constantes en tête de `tools/make_profile.js` (objet `ENV`) — à adapter pour un autre poste/modèle.
 
 ---
 
-## ⚠️ À savoir sur le format de profil
+## À savoir sur le format de profil
 
-Le format `.streamDeckProfile` **n'est pas documenté officiellement** par Elgato et varie selon
-les versions du logiciel. Ce profil est généré selon le format **Stream Deck 6.x** (bundle `Pages`
-+ `Profiles/<page>/`, `Version: "2.0"`, `Device.Model` = MK.2).
+Le format `.streamDeckProfile` **n'est pas documenté officiellement** par Elgato. Ce générateur
+calque le format **Stream Deck 7.5** relevé sur un vrai export de l'appareil (`package.json`
+`FormatVersion:1` + `RequiredPlugins`, bundle `Version:"3.0"` avec page `Default`, schéma d'action
+`ActionID`/`Plugin`/`LinkedTitle`/`Resources`). Le `Device.UUID` et les métadonnées OS/app sont
+ceux de la machine de test (modifiables dans `tools/make_profile.js`).
 
-Si l'import échoue, cible le mauvais device, ou n'affiche pas les images :
-1. Vérifie ton **modèle exact** (le profil est lié au modèle ; régénère avec le bon id ci-dessus).
-2. **Fallback fiable** : installe seulement le **plugin**, puis glisse manuellement l'action
-   *Trigger UE Event* sur 5 touches et configure-les via le Property Inspector (toujours fonctionnel).
-   Le tableau ci-dessus donne les valeurs exactes.
+Si tu changes de version majeure du logiciel Stream Deck, le format peut bouger : ré-exporte un
+profil de référence et redonne-le moi pour recaler le générateur.
 
-Le **plugin** (`.streamDeckPlugin`), lui, suit le format officiel et documenté — pas de fragilité.
+**Fallback toujours fiable** : installe seulement le **plugin**, glisse l'action *Trigger UE Event*
+sur 5 touches et configure-les via le Property Inspector (valeurs dans le tableau ci-dessus).
+
+Le **plugin** (`.streamDeckPlugin`), lui, suit le format officiel documenté — pas de fragilité.

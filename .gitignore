@@ -41,3 +41,6 @@ streamdeck-unreal-poc.zip
 # Stream Deck build outputs & deps
 streamdeck-unreal/dist/
 streamdeck-unreal/streamdeck-plugin/**/node_modules/
+
+# user-exported reference profile (kept locally as 7.x format template)
+streamdeck-unreal/TEST_UE.streamDeckProfile
