@@ -37,3 +37,7 @@ smartcrop/build/
 
 # Stream Deck POC handoff archive (regenerated on demand)
 streamdeck-unreal-poc.zip
+
+# Stream Deck build outputs & deps
+streamdeck-unreal/dist/
+streamdeck-unreal/streamdeck-plugin/**/node_modules/
