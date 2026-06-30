@@ -6,7 +6,7 @@
     {
       "coord": "0,0",
       "action": "EMPLACEMENTA",
-      "payload": "{\"emplacement\":A}",
+      "payload": "{\"emplacement\":\"A\"}",
       "title": "",
       "image": "EMPLACEMENTA.png",
       "showTitle": false
@@ -54,7 +54,7 @@
     {
       "coord": "0,1",
       "action": "EMPLACEMENTB",
-      "payload": "{\"emplacement\":B}",
+      "payload": "{\"emplacement\":\"B\"}",
       "title": "",
       "image": "EMPLACEMENTB.png",
       "showTitle": false
@@ -94,7 +94,7 @@
     {
       "coord": "7,1",
       "action": "MODULE10",
-      "payload": "{\"module\":1}",
+      "payload": "{\"module\":10}",
       "title": "",
       "image": "MODULE10.png",
       "showTitle": false
@@ -102,7 +102,7 @@
     {
       "coord": "0,2",
       "action": "EMPLACEMENTC",
-      "payload": "{\"emplacement\":C}",
+      "payload": "{\"emplacement\":\"C\"}",
       "title": "",
       "image": "EMPLACEMENTC.png",
       "showTitle": false
@@ -125,10 +125,10 @@
     },
     {
       "coord": "5,2",
-      "action": "MODULE513",
+      "action": "MODULE13",
       "payload": "{\"module\":13}",
       "title": "",
-      "image": "MODULE513.png",
+      "image": "MODULE13.png",
       "showTitle": false
     },
     {
@@ -150,7 +150,7 @@
     {
       "coord": "0,3",
       "action": "EMPLACEMENTD",
-      "payload": "{\"emplacement\":D}",
+      "payload": "{\"emplacement\":\"D\"}",
       "title": "",
       "image": "EMPLACEMENTD.png",
       "showTitle": false

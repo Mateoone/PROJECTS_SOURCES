@@ -34,12 +34,11 @@ avec tes 19 images embarquées et `host 127.0.0.1 / port 5051` sur chaque touche
 À l'appui, chaque touche envoie `{"action": <ACTION>, "payload": <payload>}` à UE — voir
 [HANDOFF.md](HANDOFF.md) pour router ça côté gameplay.
 
-> ⚠️ **Anomalies relevées dans ton export** (reproduites telles quelles, à corriger côté Stream Deck
-> si besoin — le générateur suivra) :
-> - Payloads emplacement `{"emplacement":A}` = **JSON invalide** (A/B/C/D non quotés) → envoyés à UE
->   comme **chaîne**, pas comme objet. Pour un objet : `{"emplacement":"A"}`.
-> - `MODULE10` a le payload `{"module":1}` (probablement `10` voulu).
-> - Touche `5,2` : action nommée `MODULE513` (probablement `MODULE13`).
+> ✅ **Corrections appliquées** par rapport à l'export d'origine :
+> - Payloads emplacement passés en JSON valide `{"emplacement":"A"}` (…`B/C/D`) → envoyés à UE
+>   comme **objet** (`payload:{"emplacement":"A"}`), plus comme chaîne.
+> - `MODULE10` : payload corrigé `{"module":10}` (était `1`).
+> - Touche `5,2` : action renommée `MODULE13` (était `MODULE513`), image idem.
 
 ## 3. Côté Unreal
 
