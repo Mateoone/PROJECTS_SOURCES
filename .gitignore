@@ -34,3 +34,6 @@ smartcrop/build/
 
 # Logs
 *.log
+
+# Stream Deck POC handoff archive (regenerated on demand)
+streamdeck-unreal-poc.zip
