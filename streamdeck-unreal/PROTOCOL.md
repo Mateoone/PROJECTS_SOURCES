@@ -43,18 +43,28 @@ Côté UE (`HandleIncomingLine`) :
 Fire            ← ligne brute = action "Fire" (debug uniquement)
 ```
 
-## Unreal → Stream Deck (feedback, optionnel)
+## Unreal → Stream Deck (callback / push)
 
-Émis par `SendState(Action, State)` côté UE :
+UE peut, à tout moment, pousser une mise à jour vers **tous les boutons abonnés à une `action`**
+(le routage se fait par nom d'action, car UE n'a pas la notion de bouton individuel) :
 
 ```json
-{"action":"<string>","state":"<string>"}\n
+{"action":"<string>","title":"<string>","image":"<ref>","state":<number>}\n
 ```
 
-Le plugin Stream Deck lit cette ligne sur la connexion persistante et met à jour le **titre**
-de **tous les boutons abonnés à cette `action`** (le routage se fait par nom d'action, car UE
-n'a pas la notion de bouton individuel). Si UE n'envoie rien, le bouton affiche simplement ✓
-après un envoi réussi.
+| Champ | Optionnel | Effet sur le bouton (event Stream Deck) |
+|---|---|---|
+| `action` | non | clé de routage (quelles touches) |
+| `title` | oui | `setTitle` — texte du titre |
+| `image` | oui | `setImage` — `"bt_03"` (image embarquée du plugin) **ou** un data URI `data:image/png;base64,…` |
+| `state` | oui | nombre → `setState` (action multi-états) ; **chaîne** → traité comme `title` (rétro-compat `SendState`) |
+
+Émis côté UE par `SetButtonTitle` / `SetButtonImage` / `SetButtonState` (et `SendState`, alias
+historique de `SetButtonTitle`). Les champs absents ne touchent pas le bouton. Si UE n'envoie rien,
+le bouton affiche simplement ✓ après un appui réussi.
+
+> **Résolution d'image côté plugin** : un nom comme `"bt_03"` est cherché dans le dossier `imgs/`
+> du plugin et encodé en data URI ; un data URI est transmis tel quel. Image introuvable → ignorée.
 
 ## Threading (côté UE) — important
 

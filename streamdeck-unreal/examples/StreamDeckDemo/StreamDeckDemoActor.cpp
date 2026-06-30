@@ -140,9 +140,15 @@ void AStreamDeckDemoActor::HandleStreamDeckCommand(const FString& Action, const 
 		FeedbackState = TEXT("?");
 	}
 
-	// Push the resulting state back to the Stream Deck button (updates its title).
+	// Callback UE -> button: reflect the result on the Stream Deck key.
 	if (UStreamDeckBridgeSubsystem* Bridge = GetBridge())
 	{
-		Bridge->SendState(Action, FeedbackState);
+		Bridge->SetButtonTitle(Action, FeedbackState);
+
+		// Example of an image callback: swap the Spin key icon to mirror the running state.
+		if (Action.Equals(TEXT("Spin"), ESearchCase::IgnoreCase))
+		{
+			Bridge->SetButtonImage(Action, bSpinning ? TEXT("bt_04") : TEXT("bt_01"));
+		}
 	}
 }

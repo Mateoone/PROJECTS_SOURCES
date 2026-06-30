@@ -5,7 +5,7 @@ Deux livrables, dans `streamdeck-unreal/dist/` (régénérables, voir plus bas) 
 | Fichier | Quoi |
 |---|---|
 | `dev.mip.unreal.streamDeckPlugin` | le **plugin** (action *Trigger UE Event*, avec `ws` embarqué) |
-| `UnrealBridge.streamDeckProfile` | un **profil** de 5 boutons pré-configurés (Stream Deck **MK.2**) |
+| `UnrealBridge.streamDeckProfile` | un **profil** de 5 boutons pré-configurés, **images embarquées** (Stream Deck **XL** par défaut) |
 
 > ⚠️ **Ordre important** : installer le **plugin d'abord**, le **profil ensuite**.
 > Le profil référence l'action `dev.mip.unreal.trigger` : si le plugin n'est pas installé,
@@ -24,21 +24,18 @@ Double-cliquer `UnrealBridge.streamDeckProfile` → l'app importe le profil **Un
 Il le sélectionne (sinon, choisis-le dans le sélecteur de profils de l'app).
 
 Les 5 boutons (rangée du haut) sont mappés sur la démo `StreamDeckDemoActor`, déjà configurés
-(host `127.0.0.1`, port `5051`) et différenciés par leur **titre** :
+(host `127.0.0.1`, port `5051`), avec **image `bt_0X` embarquée** et titre :
 
-| Touche | Titre | Action | Payload | Effet UE |
-|---|---|---|---|---|
-| 1 | Red | `Color` | `{"r":1,"g":0,"b":0}` | cube rouge |
-| 2 | Blue | `Color` | `{"r":0,"g":0.4,"b":1}` | cube bleu |
-| 3 | Scale x2 | `Scale` | `{"value":2.0}` | échelle ×2 |
-| 4 | Spin | `Spin` | *(vide)* | toggle rotation |
-| 5 | Reset | `Reset` | *(vide)* | reset |
+| Touche | Image | Titre | Action | Payload | Effet UE |
+|---|---|---|---|---|---|
+| 1 | bt_01 | Red | `Color` | `{"r":1,"g":0,"b":0}` | cube rouge |
+| 2 | bt_02 | Blue | `Color` | `{"r":0,"g":0.4,"b":1}` | cube bleu |
+| 3 | bt_03 | Scale x2 | `Scale` | `{"value":2.0}` | échelle ×2 |
+| 4 | bt_04 | Spin | `Spin` | *(vide)* | toggle rotation |
+| 5 | bt_05 | Reset | `Reset` | *(vide)* | reset |
 
-> **Images** : les 5 touches affichent l'icône par défaut du plugin (la « TV verte »), pas les
-> `bt_01..05`. Le format d'export 7.5 dont je dispose ne contenait pas d'image personnalisée, donc
-> je ne connais pas encore son encodage. Pour des icônes distinctes : pose-les à la main après
-> import (10 s/touche), ou exporte-moi un profil où tu as mis **une** image custom sur une touche
-> et je l'intègre au générateur.
+> Profil généré pour **Stream Deck XL** (`20GAT9902`) par défaut. Pour MK.2 :
+> `./tools/build.sh mk2` (voir plus bas).
 
 ## 3. Côté Unreal
 
@@ -52,21 +49,23 @@ puis appuyer sur les boutons.
 
 ```bash
 cd streamdeck-unreal
-./tools/build.sh        # construit le .streamDeckPlugin + le .streamDeckProfile
+./tools/build.sh           # plugin + profil XL (défaut)
+./tools/build.sh mk2       # profil Stream Deck MK.2 (5x3) à la place
 ```
 
-Le modèle d'appareil et les métadonnées 7.5 (`DeviceModel`, `DeviceUUID`, `AppVersion`…) sont en
-constantes en tête de `tools/make_profile.js` (objet `ENV`) — à adapter pour un autre poste/modèle.
+Modèles connus dans `tools/make_profile.js` (objet `DEVICES`) : `xl` = `20GAT9902`,
+`mk2` = `20GBA9901`. Le `Device.UUID` et les métadonnées OS/app (objet `ENV`) sont ceux des
+machines de test — à adapter pour un autre poste/modèle.
 
 ---
 
 ## À savoir sur le format de profil
 
 Le format `.streamDeckProfile` **n'est pas documenté officiellement** par Elgato. Ce générateur
-calque le format **Stream Deck 7.5** relevé sur un vrai export de l'appareil (`package.json`
+calque le format **Stream Deck 7.5** relevé sur de vrais exports de l'appareil (`package.json`
 `FormatVersion:1` + `RequiredPlugins`, bundle `Version:"3.0"` avec page `Default`, schéma d'action
-`ActionID`/`Plugin`/`LinkedTitle`/`Resources`). Le `Device.UUID` et les métadonnées OS/app sont
-ceux de la machine de test (modifiables dans `tools/make_profile.js`).
+`ActionID`/`Plugin`/`LinkedTitle`/`Resources`, images dans `Images/` référencées par
+`States[].Image`). Le `Device.UUID` et les métadonnées OS/app sont ceux des machines de test.
 
 Si tu changes de version majeure du logiciel Stream Deck, le format peut bouger : ré-exporte un
 profil de référence et redonne-le moi pour recaler le générateur.

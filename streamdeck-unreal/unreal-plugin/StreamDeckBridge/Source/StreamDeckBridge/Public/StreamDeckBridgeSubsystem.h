@@ -46,11 +46,29 @@ public:
 	bool IsClientConnected() const;
 
 	/**
-	 * Push state back to the Stream Deck plugin to update a button title / state.
-	 * Sends {"action":Action,"state":State}\n to the connected client.
+	 * Push state back to the Stream Deck plugin to update a button title.
+	 * Sends {"action":Action,"state":State}\n (legacy convenience = SetButtonTitle).
 	 */
 	UFUNCTION(BlueprintCallable, Category = "StreamDeck")
 	bool SendState(const FString& Action, const FString& State);
+
+	// --- Callbacks UE -> button: update every button bound to "Action" at any time. ---
+
+	/** Set the title text of all buttons bound to Action. */
+	UFUNCTION(BlueprintCallable, Category = "StreamDeck|Callback")
+	bool SetButtonTitle(const FString& Action, const FString& Title);
+
+	/**
+	 * Set the image of all buttons bound to Action.
+	 * ImageName = a bundled plugin image (e.g. "bt_03", under the plugin's imgs/),
+	 * or a full data URI ("data:image/png;base64,...").
+	 */
+	UFUNCTION(BlueprintCallable, Category = "StreamDeck|Callback")
+	bool SetButtonImage(const FString& Action, const FString& ImageName);
+
+	/** Set the state index (for multi-state actions) of all buttons bound to Action. */
+	UFUNCTION(BlueprintCallable, Category = "StreamDeck|Callback")
+	bool SetButtonState(const FString& Action, int32 StateIndex);
 
 	/** Called from the worker thread; re-dispatches onto the game thread. */
 	void HandleIncomingLine(const FString& Line);

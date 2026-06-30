@@ -1,109 +1,99 @@
-# Stream Deck ↔ Unreal Engine — POC
+# Stream Deck ↔ Unreal Engine
 
-Bridge runtime entre un **Elgato Stream Deck** et **Unreal Engine** (éditeur PIE *et* build packagé).
-Inspiré de l'asset Unity *Stream Deck Integration* (F10), mais côté UE.
+Piloter des **events de gameplay Unreal** depuis un **Elgato Stream Deck** (éditeur PIE *et* build
+packagé), et **renvoyer l'état du jeu vers les boutons** (titre / image / état). POC complet, testé,
+inspiré de l'asset Unity *Stream Deck Integration* — mais côté UE.
 
+```mermaid
+flowchart LR
+  D[Stream Deck device] -- USB --> A[App Stream Deck Elgato]
+  A -- WebSocket JSON --> P["Plugin Stream Deck<br/>(Node, persistant + reconnexion)"]
+  P -- "TCP 5051<br/>{action, payload}" --> U["Subsystem C++ UE<br/>(GameInstanceSubsystem)"]
+  U -- "delegate Blueprint<br/>OnStreamDeckCommand" --> G[Ton gameplay]
+  U -. "callback {action, title, image, state}" .-> P
+  P -. "setTitle / setImage / setState" .-> D
 ```
-[Stream Deck device]
-      │ USB
-[App Stream Deck Elgato]
-      │ WebSocket JSON (imposé par Elgato)
-[Plugin Stream Deck]  (Node/ws)        ← streamdeck-plugin/
-      │ TCP, 1 ligne JSON par appui : {"action":"Fire","payload":{...}}\n
-[Subsystem C++ UE]  (TCP server)       ← unreal-plugin/
-      │ delegate Blueprint OnStreamDeckCommand(Action, Payload)
-[Ton gameplay]
-```
 
-## Pourquoi ce design (et pas le Remote Control API)
-
-Le **Remote Control API** d'Unreal (HTTP 30010 / WebSocket) est parfait pour piloter l'**éditeur**
-(virtual production, lumières, caméras). Mais pour des **events de gameplay dans un build packagé**,
-on veut un canal léger qui fire un delegate Blueprint. D'où ce petit serveur TCP custom.
+- **Aller** (appui → UE) : le plugin envoie `{"action","payload"}` en TCP ; le subsystem fire le
+  delegate Blueprint `OnStreamDeckCommand(Action, Payload)`.
+- **Retour / callback** (UE → bouton) : à tout moment, UE appelle `SetButtonTitle/Image/State`
+  pour mettre à jour **toutes les touches liées à cette action** (ex. surligner l'emplacement choisi).
 
 ---
 
-## 1. Côté Unreal — `unreal-plugin/StreamDeckBridge`
+## Pour le dev UE — 3 étapes
 
-### Installation
-1. Copier le dossier `StreamDeckBridge/` dans `TonProjet/Plugins/`.
-2. Régénérer les fichiers de projet, recompiler (le plugin a besoin d'un projet C++).
-3. Activer **Stream Deck Bridge** dans *Edit → Plugins* si besoin (activé par défaut).
+1. **Installer le plugin UE** : copier [`unreal-plugin/StreamDeckBridge/`](unreal-plugin/StreamDeckBridge)
+   dans `TonProjet/Plugins/`, régénérer, compiler. Le serveur TCP démarre seul sur le port **5051**.
+2. **Brancher ton gameplay** : récupérer le subsystem *Stream Deck Bridge*, lier l'event
+   **On Stream Deck Command (Action, Payload)** et router avec un *Switch on String*.
+   Exemple clé en main : [`examples/StreamDeckDemo`](examples/StreamDeckDemo).
+3. **Pousser l'état vers les boutons** (callback) : appeler les fonctions ci-dessous quand l'état
+   du jeu change.
 
-Le serveur TCP démarre tout seul (port **5051**) via un `UGameInstanceSubsystem` dès le lancement du jeu.
+### API du subsystem (`UStreamDeckBridgeSubsystem`)
 
-### Utilisation en Blueprint
-- Récupérer le subsystem : *Get Game Instance Subsystem → Stream Deck Bridge Subsystem*.
-- Lier l'event **On Stream Deck Command (Action, Payload)** et router selon `Action` :
-
-```
-Event OnStreamDeckCommand (Action, Payload)
-   └─ Switch on String (Action)
-        ├─ "Fire"       → SpawnProjectile
-        ├─ "Pause"      → Set Game Paused
-        └─ "SpawnEnemy" → parse Payload (JSON) → Spawn
-```
-
-### Feedback bouton (optionnel)
-`SendState(Action, State)` renvoie l'état vers le Stream Deck (ex. mettre à jour le titre du bouton).
-
-### API exposée
-| Membre | Type | Rôle |
+| Fonction / event | Sens | Rôle |
 |---|---|---|
-| `OnStreamDeckCommand(Action, Payload)` | delegate BlueprintAssignable | reçu à chaque appui (game thread) |
-| `StartServer(Port=5051)` / `StopServer()` | BlueprintCallable | (re)démarrer le serveur |
-| `IsClientConnected()` | BlueprintPure | un Stream Deck est-il connecté ? |
-| `SendState(Action, State)` | BlueprintCallable | feedback vers le bouton |
+| `OnStreamDeckCommand(Action, Payload)` | bouton → UE | delegate BlueprintAssignable, fired à chaque appui (game thread) |
+| `IsClientConnected()` | — | un Stream Deck est-il connecté ? |
+| `SetButtonTitle(Action, Title)` | UE → bouton | change le titre des touches liées à `Action` |
+| `SetButtonImage(Action, ImageName)` | UE → bouton | change l'image (`"bt_03"` embarquée, ou data URI) |
+| `SetButtonState(Action, StateIndex)` | UE → bouton | change l'état (actions multi-états) |
+| `StartServer(Port)` / `StopServer()` | — | (re)démarrer le serveur TCP |
+
+> Le routage UE→bouton se fait **par nom d'action** (UE ne connaît pas les touches individuelles) :
+> un `SetButtonImage("Spin","bt_04")` met à jour toutes les touches configurées sur l'action `Spin`.
 
 ---
 
-## 2. Côté Stream Deck — `streamdeck-plugin/dev.mip.unreal.sdPlugin`
+## Tester sans matériel / sans UE
 
-### Installation (dev)
-```bash
-cd streamdeck-plugin/dev.mip.unreal.sdPlugin
-npm install            # installe ws
-```
-Puis lier le dossier `.sdPlugin` dans le répertoire plugins de Stream Deck :
-- **macOS** : `~/Library/Application Support/com.elgato.StreamDeck/Plugins/`
-- **Windows** : `%APPDATA%\Elgato\StreamDeck\Plugins\`
+| Besoin | Outil |
+|---|---|
+| Piloter UE **sans Stream Deck** | `printf '{"action":"Fire","payload":""}\n' \| nc 127.0.0.1 5051` |
+| Vérifier le Stream Deck **sans UE** | `node tools/mock-ue/server.js` → http://localhost:8787 (voir le faux UE en live + tester le callback) |
 
-```bash
-# macOS
-ln -s "$PWD" ~/Library/Application\ Support/com.elgato.StreamDeck/Plugins/dev.mip.unreal.sdPlugin
-```
-Redémarrer l'app Stream Deck. L'action **Trigger UE Event** apparaît dans la catégorie *Unreal Bridge*.
-
-### Configuration d'un bouton (Property Inspector)
-| Champ | Défaut | Description |
-|---|---|---|
-| UE Host | `127.0.0.1` | IP de la machine Unreal |
-| UE Port | `5051` | port du subsystem |
-| Action | `Fire` | nom logique routé côté UE |
-| Payload | *(vide)* | JSON (`{"power":10}`) ou texte simple |
-| Title | *(vide)* | libellé du bouton |
-
-À l'appui : OK ✓ si UE a reçu, ⚠️ alerte si la connexion échoue.
-
-> ⚠️ Manquent les PNG d'icônes (`imgs/`). Ajouter `plugin.png`, `action.png`, `key.png`,
-> `category.png` (+ variantes `@2x`) avant packaging/distribution.
+Le **mock UE** ([tools/mock-ue](tools/mock-ue)) ouvre le même serveur TCP que le subsystem et
+affiche les instructions reçues en temps réel, avec un panneau pour pousser titre/image/état.
 
 ---
 
-## 3. Tests rapides sans matériel
+## Installer le côté Stream Deck (plugin + profil)
 
-Tester le côté UE sans Stream Deck (netcat → subsystem) :
+Paquets prêts dans `dist/` (régénérables) :
+
 ```bash
-printf '{"action":"Fire","payload":{"power":10}}\n' | nc 127.0.0.1 5051
+./tools/build.sh           # -> dist/dev.mip.unreal.streamDeckPlugin + dist/UnrealBridge.streamDeckProfile (XL)
+./tools/build.sh mk2       # profil pour Stream Deck MK.2 (5x3) au lieu de XL
 ```
-Le parseur accepte aussi une ligne brute (`Fire\n`) comme nom d'action, pratique pour debug.
+
+Installation et mapping des boutons : voir [INSTALL.md](INSTALL.md).
 
 ---
+
+## Carte du dépôt
+
+| Chemin | Quoi |
+|---|---|
+| [`unreal-plugin/StreamDeckBridge/`](unreal-plugin/StreamDeckBridge) | **plugin C++ UE** (subsystem TCP + delegate + callbacks) |
+| [`examples/StreamDeckDemo/`](examples/StreamDeckDemo) | actor de démo (Color/Scale/Spin/Reset) + recette Blueprint |
+| [`streamdeck-plugin/dev.mip.unreal.sdPlugin/`](streamdeck-plugin/dev.mip.unreal.sdPlugin) | **plugin Stream Deck** (Node : connexion persistante, callback, images) |
+| [`tools/mock-ue/`](tools/mock-ue) | faux UE web pour vérifier les instructions reçues |
+| [`tools/make_profile.js`](tools/make_profile.js) · [`tools/build.sh`](tools/build.sh) | génération des paquets `.streamDeckPlugin` / `.streamDeckProfile` |
+| `dist/` | paquets construits (gitignoré) |
+
+## Docs détaillées
+
+- [HANDOFF.md](HANDOFF.md) — guide complet (pré-requis, install pas-à-pas, dépannage, *definition of done*).
+- [PROTOCOL.md](PROTOCOL.md) — le contrat réseau (format des trames, callback, threading, sécurité).
+- [INSTALL.md](INSTALL.md) — installer le plugin + le profil Stream Deck, mapping des touches.
 
 ## Roadmap
-- [ ] Icônes PNG + packaging `.streamDeckPlugin`.
-- [x] Connexion TCP persistante + reconnexion auto (backoff), mutualisée par `host:port`.
+
+- [x] Aller bouton → UE (delegate Blueprint).
+- [x] Connexion TCP persistante + reconnexion auto, mutualisée par `host:port`.
+- [x] Callback UE → bouton (titre / image / état).
+- [x] Profils MK.2 et XL avec images embarquées.
 - [ ] Côté UE : accepter plusieurs clients simultanés (actuellement 1 à la fois).
-- [ ] Dials (Stream Deck +) → valeurs analogiques (intensité, vitesse…).
-- [ ] Plugin Stream Deck en TypeScript via `@elgato/streamdeck` + CLI.
-- [ ] Auth/token sur le port TCP si exposé hors localhost.
+- [ ] Dials (Stream Deck +) pour les valeurs analogiques.

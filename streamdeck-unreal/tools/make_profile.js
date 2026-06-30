@@ -1,17 +1,18 @@
 #!/usr/bin/env node
 // Generates dist/UnrealBridge.streamDeckProfile — 5 buttons mapped to the StreamDeckDemo
-// actions (Color/Scale/Spin/Reset), pre-configured (host/port/action/payload/title).
+// actions (Color/Scale/Spin/Reset), pre-configured AND with the bt_0X images baked in.
 //
-// Format = Stream Deck 7.x (reverse-engineered from a real 7.5 export). Zip layout:
+// Format = Stream Deck 7.x (reverse-engineered from real 7.5 exports). Zip layout:
 //   package.json                                          (FormatVersion 1 + RequiredPlugins)
 //   Profiles/<outerUUID>.sdProfile/manifest.json          (bundle, Version 3.0, Device, Pages)
 //   Profiles/<outerUUID>.sdProfile/Profiles/<pageUUID>/manifest.json   (Keypad Actions)
+//   Profiles/<outerUUID>.sdProfile/Profiles/<pageUUID>/Images/*.png    (custom key images)
 //   Profiles/<outerUUID>.sdProfile/Profiles/<defaultUUID>/manifest.json (empty default page)
 //
-// NOTE: custom per-key images are NOT baked in (the export had none to learn the encoding).
-// Keys show the plugin's default action icon; they are differentiated by their titles.
+// Custom-image encoding (from the XL export): each key's States[0].Image points to
+// "Images/<file>.png", stored next to the page manifest.
 //
-// Usage:  node tools/make_profile.js
+// Usage:  node tools/make_profile.js [xl|mk2]      (default: xl)
 
 const fs = require("fs");
 const path = require("path");
@@ -19,31 +20,38 @@ const { execSync } = require("child_process");
 const crypto = require("crypto");
 
 const ROOT = path.resolve(__dirname, "..");
+const IMGS = path.join(ROOT, "streamdeck-plugin/dev.mip.unreal.sdPlugin/imgs");
 const DIST = path.join(ROOT, "dist");
 const BUILD = path.join(require("os").tmpdir(), `sdprofile_build_${process.pid}`);
 
-// --- environment metadata, taken from the user's working 7.5 export ---
-const ENV = {
-	AppVersion: "7.5.0.22885",
-	DeviceModel: "20GBA9901", // Stream Deck MK.2
-	DeviceUUID: "833c22d1-bdb2-487f-a150-090548977a6f", // user's hardware instance
-	OSType: "macOS",
-	OSVersion: "26.5.1",
+// --- device targets, with metadata from the user's real 7.5 exports ---
+const DEVICES = {
+	xl: { Model: "20GAT9902", UUID: "07f87425-bb2f-48a4-86e9-ac48f4c657de" }, // Stream Deck XL (8x4)
+	mk2: { Model: "20GBA9901", UUID: "833c22d1-bdb2-487f-a150-090548977a6f" }, // Stream Deck MK.2 (5x3)
 };
+const ENV = { AppVersion: "7.5.0.22885", OSType: "macOS", OSVersion: "26.5.1" };
 const PLUGIN = { Name: "Unreal Bridge", UUID: "dev.mip.unreal", Version: "0.1.0.0" };
 const ACTION_UUID = "dev.mip.unreal.trigger";
 
-const uuid = () => crypto.randomUUID(); // lowercase, as in the export
+const target = (process.argv[2] || "xl").toLowerCase();
+const device = DEVICES[target];
+if (!device) {
+	console.error(`Unknown device '${target}'. Use one of: ${Object.keys(DEVICES).join(", ")}`);
+	process.exit(1);
+}
+
+const uuid = () => crypto.randomUUID();
 const outerUUID = uuid().toUpperCase();
 const pageUUID = uuid().toUpperCase();
 const defaultUUID = uuid().toUpperCase();
 
+// 5 demo buttons on the top row (fits both XL and MK.2).
 const keys = [
-	{ col: 0, action: "Color", payload: '{"r":1,"g":0,"b":0}', title: "Red" },
-	{ col: 1, action: "Color", payload: '{"r":0,"g":0.4,"b":1}', title: "Blue" },
-	{ col: 2, action: "Scale", payload: '{"value":2.0}', title: "Scale x2" },
-	{ col: 3, action: "Spin", payload: "", title: "Spin" },
-	{ col: 4, action: "Reset", payload: "", title: "Reset" },
+	{ col: 0, action: "Color", payload: '{"r":1,"g":0,"b":0}', title: "Red", img: "bt_01.png" },
+	{ col: 1, action: "Color", payload: '{"r":0,"g":0.4,"b":1}', title: "Blue", img: "bt_02.png" },
+	{ col: 2, action: "Scale", payload: '{"value":2.0}', title: "Scale x2", img: "bt_03.png" },
+	{ col: 3, action: "Spin", payload: "", title: "Spin", img: "bt_04.png" },
+	{ col: 4, action: "Reset", payload: "", title: "Reset", img: "bt_05.png" },
 ];
 
 const mkAction = (k) => ({
@@ -60,6 +68,7 @@ const mkAction = (k) => ({
 			FontSize: 12,
 			FontStyle: "",
 			FontUnderline: false,
+			Image: `Images/${k.img}`,
 			OutlineThickness: 2,
 			ShowTitle: true,
 			Title: k.title,
@@ -74,45 +83,32 @@ const mkAction = (k) => ({
 fs.rmSync(BUILD, { recursive: true, force: true });
 const sdProfileDir = path.join(BUILD, "Profiles", `${outerUUID}.sdProfile`);
 const pageDir = path.join(sdProfileDir, "Profiles", pageUUID);
+const imagesDir = path.join(pageDir, "Images");
 const defaultDir = path.join(sdProfileDir, "Profiles", defaultUUID);
-fs.mkdirSync(pageDir, { recursive: true });
+fs.mkdirSync(imagesDir, { recursive: true });
 fs.mkdirSync(defaultDir, { recursive: true });
 
-// root package.json
 fs.writeFileSync(
 	path.join(BUILD, "package.json"),
-	JSON.stringify({
-		AppVersion: ENV.AppVersion,
-		DeviceModel: ENV.DeviceModel,
-		DeviceSettings: null,
-		FormatVersion: 1,
-		OSType: ENV.OSType,
-		OSVersion: ENV.OSVersion,
-		RequiredPlugins: [PLUGIN.UUID],
-	})
+	JSON.stringify({ AppVersion: ENV.AppVersion, DeviceModel: device.Model, DeviceSettings: null, FormatVersion: 1, OSType: ENV.OSType, OSVersion: ENV.OSVersion, RequiredPlugins: [PLUGIN.UUID] })
 );
 
-// bundle manifest
 fs.writeFileSync(
 	path.join(sdProfileDir, "manifest.json"),
 	JSON.stringify({
-		Device: { Model: ENV.DeviceModel, UUID: ENV.DeviceUUID },
+		Device: { Model: device.Model, UUID: device.UUID },
 		Name: "Unreal Bridge",
-		Pages: {
-			Current: "00000000-0000-0000-0000-000000000000",
-			Default: defaultUUID.toLowerCase(),
-			Pages: [pageUUID.toLowerCase()],
-		},
+		Pages: { Current: "00000000-0000-0000-0000-000000000000", Default: defaultUUID.toLowerCase(), Pages: [pageUUID.toLowerCase()] },
 		Version: "3.0",
 	})
 );
 
-// action page
 const actions = {};
-for (const k of keys) actions[`${k.col},0`] = mkAction(k);
+for (const k of keys) {
+	actions[`${k.col},0`] = mkAction(k);
+	fs.copyFileSync(path.join(IMGS, k.img), path.join(imagesDir, k.img));
+}
 fs.writeFileSync(path.join(pageDir, "manifest.json"), JSON.stringify({ Controllers: [{ Actions: actions, Type: "Keypad" }], Icon: "", Name: "" }));
-
-// empty default page
 fs.writeFileSync(path.join(defaultDir, "manifest.json"), JSON.stringify({ Controllers: [{ Actions: null, Type: "Keypad" }], Icon: "", Name: "" }));
 
 // --- zip (root entries = package.json + Profiles/) ---
@@ -123,5 +119,4 @@ execSync(`cd "${BUILD}" && zip -rqX "${out}" package.json Profiles -x "*/.DS_Sto
 fs.rmSync(BUILD, { recursive: true, force: true });
 
 console.log(`Built ${out}`);
-console.log(`  device ${ENV.DeviceModel} | outer ${outerUUID}`);
-console.log(`  pages: actions=${pageUUID.toLowerCase()} default=${defaultUUID.toLowerCase()}`);
+console.log(`  target ${target} | device ${device.Model} | 5 keys with baked images`);

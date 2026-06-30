@@ -22,9 +22,10 @@ Variables d'env : `TCP_PORT` (défaut 5051), `HTTP_PORT` (défaut 8787).
 - **Journal live** des instructions reçues : heure, `action` (badge), `payload` (une ligne brute
   non-JSON s'affiche en badge orange — comme côté UE qui la traite alors comme nom d'action).
 - **Statistiques** : compteur par action.
-- **Renvoyer un feedback → bouton** : saisis `action` + `state`, le serveur écrit
-  `{"action","state"}` sur la connexion — exactement comme `SendState()` côté UE — et le titre
-  du bouton Stream Deck se met à jour. Permet de tester l'aller-retour complet.
+- **Callback UE → bouton** : saisis `action` + (titre / image embarquée / state index), le serveur
+  écrit `{"action","title","image","state"}` sur la connexion — exactement comme
+  `SetButtonTitle/Image/State()` côté UE — et toutes les touches liées à cette action se mettent à
+  jour. Permet de tester l'aller-retour complet, image comprise.
 
 ## Endpoints (pour scripter)
 

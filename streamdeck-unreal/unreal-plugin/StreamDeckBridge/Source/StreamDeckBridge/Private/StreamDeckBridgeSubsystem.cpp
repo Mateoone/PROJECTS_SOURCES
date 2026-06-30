@@ -267,14 +267,52 @@ bool UStreamDeckBridgeSubsystem::IsClientConnected() const
 	return Worker.IsValid() && Worker->HasClient();
 }
 
+// Serialize a push object to a single JSON line, safely escaping every field.
+static FString MakePushLine(const TFunctionRef<void(const TSharedRef<FJsonObject>&)>& Fill)
+{
+	const TSharedRef<FJsonObject> Obj = MakeShared<FJsonObject>();
+	Fill(Obj);
+	FString Out;
+	const TSharedRef<TJsonWriter<>> Writer = TJsonWriterFactory<>::Create(&Out);
+	FJsonSerializer::Serialize(Obj, Writer);
+	Out.Append(TEXT("\n"));
+	return Out;
+}
+
 bool UStreamDeckBridgeSubsystem::SendState(const FString& Action, const FString& State)
 {
-	if (!Worker.IsValid())
+	// Legacy: a string "state" is interpreted as the title by the plugin.
+	return SetButtonTitle(Action, State);
+}
+
+bool UStreamDeckBridgeSubsystem::SetButtonTitle(const FString& Action, const FString& Title)
+{
+	if (!Worker.IsValid()) { return false; }
+	return Worker->Send(MakePushLine([&](const TSharedRef<FJsonObject>& O)
 	{
-		return false;
-	}
-	const FString Line = FString::Printf(TEXT("{\"action\":\"%s\",\"state\":\"%s\"}\n"), *Action, *State);
-	return Worker->Send(Line);
+		O->SetStringField(TEXT("action"), Action);
+		O->SetStringField(TEXT("title"), Title);
+	}));
+}
+
+bool UStreamDeckBridgeSubsystem::SetButtonImage(const FString& Action, const FString& ImageName)
+{
+	if (!Worker.IsValid()) { return false; }
+	return Worker->Send(MakePushLine([&](const TSharedRef<FJsonObject>& O)
+	{
+		O->SetStringField(TEXT("action"), Action);
+		O->SetStringField(TEXT("image"), ImageName);
+	}));
+}
+
+bool UStreamDeckBridgeSubsystem::SetButtonState(const FString& Action, int32 StateIndex)
+{
+	if (!Worker.IsValid()) { return false; }
+	return Worker->Send(MakePushLine([&](const TSharedRef<FJsonObject>& O)
+	{
+		O->SetStringField(TEXT("action"), Action);
+		O->SetNumberField(TEXT("state"), StateIndex);
+	}));
 }
 
 void UStreamDeckBridgeSubsystem::HandleIncomingLine(const FString& Line)

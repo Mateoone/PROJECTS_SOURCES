@@ -89,7 +89,14 @@ Voir `examples/StreamDeckDemo/StreamDeckDemoActor.cpp` : `AddDynamic` au `BeginP
 | `OnStreamDeckCommand(Action, Payload)` | delegate BlueprintAssignable | reçu à chaque appui (game thread) |
 | `StartServer(Port=5051)` / `StopServer()` | BlueprintCallable | (re)démarrer le serveur |
 | `IsClientConnected()` | BlueprintPure | un client est-il connecté ? |
-| `SendState(Action, State)` | BlueprintCallable | feedback vers le bouton |
+| `SetButtonTitle(Action, Title)` | BlueprintCallable | **callback** : titre des touches liées à `Action` |
+| `SetButtonImage(Action, ImageName)` | BlueprintCallable | **callback** : image (`"bt_03"` embarquée ou data URI) |
+| `SetButtonState(Action, StateIndex)` | BlueprintCallable | **callback** : état (actions multi-états) |
+| `SendState(Action, State)` | BlueprintCallable | alias historique de `SetButtonTitle` |
+
+> **Callback UE → bouton** : ces fonctions ciblent **toutes les touches configurées sur `Action`**.
+> Ex. quand un module est sélectionné dans la sim : `SetButtonImage("emplacementA", "bt_03")` +
+> `SetButtonTitle("emplacementA", "SÉLECTIONNÉ")`. Détails du format : **PROTOCOL.md**.
 
 ---
 

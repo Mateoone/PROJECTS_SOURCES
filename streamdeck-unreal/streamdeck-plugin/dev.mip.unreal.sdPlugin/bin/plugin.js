@@ -10,8 +10,32 @@
 
 const WebSocket = require("ws");
 const net = require("net");
+const fs = require("fs");
+const path = require("path");
 
 const DEFAULTS = { host: "127.0.0.1", port: 5051, action: "Fire", payload: "", title: "" };
+
+// Resolve an image reference coming from UE into a Stream Deck data URI.
+//   - a full data URI ("data:image/png;base64,...") is returned as-is,
+//   - otherwise it's treated as a bundled image name under imgs/ (e.g. "bt_03" or "bt_03.png").
+const IMG_DIR = path.join(__dirname, "..", "imgs");
+const imageCache = new Map();
+function resolveImage(ref) {
+	if (!ref) return null;
+	if (ref.startsWith("data:")) return ref;
+	if (imageCache.has(ref)) return imageCache.get(ref);
+	const file = path.join(IMG_DIR, ref.endsWith(".png") ? ref : `${ref}.png`);
+	try {
+		const b64 = fs.readFileSync(file).toString("base64");
+		const uri = `data:image/png;base64,${b64}`;
+		imageCache.set(ref, uri);
+		return uri;
+	} catch (e) {
+		console.error(`[unreal-bridge] image not found: ${ref}`);
+		imageCache.set(ref, null);
+		return null;
+	}
+}
 
 // ---------------------------------------------------------------------------
 // Persistent TCP connection to one Unreal endpoint, shared across buttons.
@@ -96,8 +120,10 @@ class Conn {
 			if (!line) continue;
 			try {
 				const obj = JSON.parse(line);
-				if (obj.state !== undefined && typeof this.onFeedback === "function") {
-					this.onFeedback(obj.action, obj.state);
+				// UE push: any object carrying an action plus at least one of title/image/state.
+				const isPush = obj && obj.action !== undefined && (obj.title !== undefined || obj.image !== undefined || obj.state !== undefined);
+				if (isPush && typeof this.onFeedback === "function") {
+					this.onFeedback(obj);
 				}
 			} catch (e) {
 				/* ignore non-JSON feedback */
@@ -149,28 +175,29 @@ class Conn {
 // Connection pool + per-button bookkeeping.
 // ---------------------------------------------------------------------------
 class Bridge {
-	constructor(onFeedbackTitle) {
+	constructor(applyPush) {
 		this.conns = new Map(); // "host:port" -> Conn
 		this.ctxInfo = new Map(); // context -> { host, port, action }
-		this.actionSubs = new Map(); // action -> Set(context)   (for routing UE feedback to buttons)
-		this.onFeedbackTitle = onFeedbackTitle; // (context, state) => void
+		this.actionSubs = new Map(); // action -> Set(context)   (for routing UE pushes to buttons)
+		this.applyPush = applyPush; // (context, pushObj) => void
 	}
 
 	static keyOf(host, port) {
 		return `${host}:${port}`;
 	}
 
-	_routeFeedback(action, state) {
-		const subs = this.actionSubs.get(action);
+	// UE pushed an update keyed by action name -> apply to every button bound to that action.
+	_routeFeedback(obj) {
+		const subs = this.actionSubs.get(obj.action);
 		if (!subs) return;
-		for (const context of subs) this.onFeedbackTitle(context, state);
+		for (const context of subs) this.applyPush(context, obj);
 	}
 
 	_acquire(host, port) {
 		const key = Bridge.keyOf(host, port);
 		let conn = this.conns.get(key);
 		if (!conn) {
-			conn = new Conn(host, port, (a, s) => this._routeFeedback(a, s));
+			conn = new Conn(host, port, (obj) => this._routeFeedback(obj));
 			this.conns.set(key, conn);
 		}
 		conn.refCount++;
@@ -276,10 +303,29 @@ function startStreamDeck({ port, pluginUUID, registerEvent }) {
 		if (sd.readyState === WebSocket.OPEN) sd.send(JSON.stringify(obj));
 	};
 	const setTitle = (context, title) => sdSend({ event: "setTitle", context, payload: { title: String(title), target: 0 } });
+	const setImage = (context, image, state) => sdSend({ event: "setImage", context, payload: { image, target: 0, ...(Number.isInteger(state) ? { state } : {}) } });
+	const setState = (context, state) => sdSend({ event: "setState", context, payload: { state } });
 	const showAlert = (context) => sdSend({ event: "showAlert", context });
 	const showOk = (context) => sdSend({ event: "showOk", context });
 
-	const bridge = new Bridge((context, state) => setTitle(context, state));
+	// Apply a UE push {action, title?, image?, state?} to one button (context).
+	const applyPush = (context, obj) => {
+		// Title: explicit "title", or legacy string "state".
+		let title = obj.title;
+		if (title === undefined && typeof obj.state === "string") title = obj.state;
+		if (title !== undefined) setTitle(context, title);
+
+		// Image: a bundled name ("bt_03") or a full data URI.
+		if (obj.image) {
+			const dataUri = resolveImage(obj.image);
+			if (dataUri) setImage(context, dataUri, Number.isInteger(obj.state) ? obj.state : undefined);
+		}
+
+		// State index (multi-state actions): only when "state" is a number.
+		if (Number.isInteger(obj.state)) setState(context, obj.state);
+	};
+
+	const bridge = new Bridge(applyPush);
 
 	sd.on("open", () => {
 		sd.send(JSON.stringify({ event: registerEvent, uuid: pluginUUID }));
@@ -338,4 +384,4 @@ if (require.main === module) {
 }
 
 // Exported for tests / reuse.
-module.exports = { Conn, Bridge, buildCommandLine };
+module.exports = { Conn, Bridge, buildCommandLine, resolveImage };

@@ -142,23 +142,25 @@ const httpServer = http.createServer((req, res) => {
 		let body = "";
 		req.on("data", (c) => (body += c));
 		req.on("end", () => {
-			let action = "",
-				state = "";
+			let j = {};
 			try {
-				const j = JSON.parse(body || "{}");
-				action = String(j.action || "");
-				state = String(j.state || "");
+				j = JSON.parse(body || "{}");
 			} catch (e) {}
 			if (!client) {
 				res.writeHead(409, { "Content-Type": "application/json" });
 				res.end(JSON.stringify({ ok: false, error: "no Stream Deck connected" }));
 				return;
 			}
-			const line = `{"action":${JSON.stringify(action)},"state":${JSON.stringify(state)}}\n`;
+			// Build a UE push: action + any of title / image / state.
+			const push = { action: String(j.action || "") };
+			if (j.title !== undefined && j.title !== "") push.title = String(j.title);
+			if (j.image !== undefined && j.image !== "") push.image = String(j.image);
+			if (j.state !== undefined && j.state !== "") push.state = Number.isNaN(Number(j.state)) ? String(j.state) : Number(j.state);
+			const line = JSON.stringify(push) + "\n";
 			client.write(line);
-			console.log(`[mock-ue] => feedback ${action} = ${state}`);
+			console.log(`[mock-ue] => push ${line.trim()}`);
 			res.writeHead(200, { "Content-Type": "application/json" });
-			res.end(JSON.stringify({ ok: true }));
+			res.end(JSON.stringify({ ok: true, sent: push }));
 		});
 		return;
 	}
@@ -227,14 +229,25 @@ const PAGE = `<!DOCTYPE html>
       <div class="body" id="stats"><div class="muted">aucune commande</div></div>
     </div>
     <div class="card">
-      <h2>Renvoyer un feedback → bouton</h2>
+      <h2>Callback UE → bouton</h2>
       <div class="body">
-        <label for="fa">Action</label>
+        <label for="fa">Action (touches ciblées)</label>
         <input id="fa" placeholder="Spin" />
-        <label for="fs">State (titre du bouton)</label>
-        <input id="fs" placeholder="spinning" />
-        <button id="send" disabled>Envoyer au Stream Deck</button>
-        <div class="hint">Écrit {"action","state"} sur la connexion, comme SendState() côté UE.</div>
+        <label for="ft">Titre</label>
+        <input id="ft" placeholder="ON" />
+        <label for="fi">Image embarquée</label>
+        <select id="fi">
+          <option value="">(inchangée)</option>
+          <option value="bt_01">bt_01</option>
+          <option value="bt_02">bt_02</option>
+          <option value="bt_03">bt_03</option>
+          <option value="bt_04">bt_04</option>
+          <option value="bt_05">bt_05</option>
+        </select>
+        <label for="fst">State index (multi-état)</label>
+        <input id="fst" type="number" placeholder="(inchangé)" />
+        <button id="send" disabled>Pousser vers le Stream Deck</button>
+        <div class="hint">Écrit {"action","title","image","state"} — comme SetButtonTitle/Image/State() côté UE. Cible toutes les touches liées à cette action.</div>
         <button id="clear" class="clearbtn">Vider le journal</button>
       </div>
     </div>
@@ -286,8 +299,10 @@ const PAGE = `<!DOCTYPE html>
 
   sendBtn.addEventListener("click", async () => {
     const action = document.getElementById("fa").value;
-    const state = document.getElementById("fs").value;
-    await fetch("/feedback", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action, state }) });
+    const title = document.getElementById("ft").value;
+    const image = document.getElementById("fi").value;
+    const state = document.getElementById("fst").value;
+    await fetch("/feedback", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action, title, image, state }) });
   });
   document.getElementById("clear").addEventListener("click", () => { feed.innerHTML = '<div class="empty">Journal vidé.</div>'; hasRows = false; });
 </script>
