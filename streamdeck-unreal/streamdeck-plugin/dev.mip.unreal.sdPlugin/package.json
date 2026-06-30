@@ -1,0 +1,10 @@
+{
+	"name": "unreal-bridge-streamdeck",
+	"version": "0.1.0",
+	"description": "Stream Deck plugin that triggers Unreal Engine gameplay events over TCP.",
+	"main": "bin/plugin.js",
+	"private": true,
+	"dependencies": {
+		"ws": "^8.18.0"
+	}
+}

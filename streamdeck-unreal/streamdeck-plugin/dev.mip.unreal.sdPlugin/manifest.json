@@ -1,0 +1,40 @@
+{
+	"Name": "Unreal Bridge",
+	"Version": "0.1.0.0",
+	"Author": "MIP",
+	"Description": "Trigger gameplay events in Unreal Engine from your Stream Deck.",
+	"Category": "Unreal Bridge",
+	"CategoryIcon": "imgs/category",
+	"Icon": "imgs/plugin",
+	"URL": "https://github.com/Mateoone",
+	"SDKVersion": 2,
+	"CodePath": "bin/plugin.js",
+	"Nodejs": {
+		"Version": "20",
+		"Debug": "enabled"
+	},
+	"Software": {
+		"MinimumVersion": "6.5"
+	},
+	"OS": [
+		{ "Platform": "mac", "MinimumVersion": "12" },
+		{ "Platform": "windows", "MinimumVersion": "10" }
+	],
+	"Actions": [
+		{
+			"UUID": "dev.mip.unreal.trigger",
+			"Name": "Trigger UE Event",
+			"Icon": "imgs/action",
+			"Tooltip": "Send a command to the connected Unreal Engine instance.",
+			"PropertyInspectorPath": "ui/inspector.html",
+			"Controllers": [ "Keypad" ],
+			"States": [
+				{
+					"Image": "imgs/key",
+					"TitleAlignment": "middle",
+					"FontSize": "12"
+				}
+			]
+		}
+	]
+}
