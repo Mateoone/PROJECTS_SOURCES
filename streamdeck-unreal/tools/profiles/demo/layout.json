@@ -1,0 +1,12 @@
+{
+  "name": "Unreal Bridge (demo)",
+  "device": "xl",
+  "imageDir": "images",
+  "keys": [
+    { "coord": "0,0", "action": "Color", "payload": "{\"r\":1,\"g\":0,\"b\":0}", "title": "Red",      "image": "bt_01.png", "showTitle": true },
+    { "coord": "1,0", "action": "Color", "payload": "{\"r\":0,\"g\":0.4,\"b\":1}", "title": "Blue",   "image": "bt_02.png", "showTitle": true },
+    { "coord": "2,0", "action": "Scale", "payload": "{\"value\":2.0}",          "title": "Scale x2", "image": "bt_03.png", "showTitle": true },
+    { "coord": "3,0", "action": "Spin",  "payload": "",                          "title": "Spin",     "image": "bt_04.png", "showTitle": true },
+    { "coord": "4,0", "action": "Reset", "payload": "",                          "title": "Reset",    "image": "bt_05.png", "showTitle": true }
+  ]
+}

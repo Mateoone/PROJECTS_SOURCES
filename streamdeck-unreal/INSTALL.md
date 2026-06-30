@@ -5,7 +5,7 @@ Deux livrables, dans `streamdeck-unreal/dist/` (régénérables, voir plus bas) 
 | Fichier | Quoi |
 |---|---|
 | `dev.mip.unreal.streamDeckPlugin` | le **plugin** (action *Trigger UE Event*, avec `ws` embarqué) |
-| `UnrealBridge.streamDeckProfile` | un **profil** de 5 boutons pré-configurés, **images embarquées** (Stream Deck **XL** par défaut) |
+| `UnrealBridge.streamDeckProfile` | le **profil ALSTOM_MODULARITY_01** (19 touches, images embarquées, Stream Deck **XL**) |
 
 > ⚠️ **Ordre important** : installer le **plugin d'abord**, le **profil ensuite**.
 > Le profil référence l'action `dev.mip.unreal.trigger` : si le plugin n'est pas installé,
@@ -23,19 +23,23 @@ L'action **Trigger UE Event** apparaît alors dans la catégorie *Unreal Bridge*
 Double-cliquer `UnrealBridge.streamDeckProfile` → l'app importe le profil **Unreal Bridge**.
 Il le sélectionne (sinon, choisis-le dans le sélecteur de profils de l'app).
 
-Les 5 boutons (rangée du haut) sont mappés sur la démo `StreamDeckDemoActor`, déjà configurés
-(host `127.0.0.1`, port `5051`), avec **image `bt_0X` embarquée** et titre :
+Le profil **ALSTOM_MODULARITY_01** (Stream Deck **XL**, `20GAT9902`) reproduit fidèlement ton layout,
+avec tes 19 images embarquées et `host 127.0.0.1 / port 5051` sur chaque touche :
 
-| Touche | Image | Titre | Action | Payload | Effet UE |
-|---|---|---|---|---|---|
-| 1 | bt_01 | Red | `Color` | `{"r":1,"g":0,"b":0}` | cube rouge |
-| 2 | bt_02 | Blue | `Color` | `{"r":0,"g":0.4,"b":1}` | cube bleu |
-| 3 | bt_03 | Scale x2 | `Scale` | `{"value":2.0}` | échelle ×2 |
-| 4 | bt_04 | Spin | `Spin` | *(vide)* | toggle rotation |
-| 5 | bt_05 | Reset | `Reset` | *(vide)* | reset |
+| Zone | Touches | Action | Payload |
+|---|---|---|---|
+| Emplacements (colonne 0) | `EMPLACEMENTA…D` | `EMPLACEMENTA` … `EMPLACEMENTD` | `{"emplacement":A}` … `D` |
+| Modules (colonnes 3-7) | 15 modules | `MODULE1` … `MODULE15` | `{"module":1}` … `{"module":15}` |
 
-> Profil généré pour **Stream Deck XL** (`20GAT9902`) par défaut. Pour MK.2 :
-> `./tools/build.sh mk2` (voir plus bas).
+À l'appui, chaque touche envoie `{"action": <ACTION>, "payload": <payload>}` à UE — voir
+[HANDOFF.md](HANDOFF.md) pour router ça côté gameplay.
+
+> ⚠️ **Anomalies relevées dans ton export** (reproduites telles quelles, à corriger côté Stream Deck
+> si besoin — le générateur suivra) :
+> - Payloads emplacement `{"emplacement":A}` = **JSON invalide** (A/B/C/D non quotés) → envoyés à UE
+>   comme **chaîne**, pas comme objet. Pour un objet : `{"emplacement":"A"}`.
+> - `MODULE10` a le payload `{"module":1}` (probablement `10` voulu).
+> - Touche `5,2` : action nommée `MODULE513` (probablement `MODULE13`).
 
 ## 3. Côté Unreal
 
@@ -49,13 +53,17 @@ puis appuyer sur les boutons.
 
 ```bash
 cd streamdeck-unreal
-./tools/build.sh           # plugin + profil XL (défaut)
-./tools/build.sh mk2       # profil Stream Deck MK.2 (5x3) à la place
+./tools/build.sh           # plugin + profil ALSTOM (défaut)
+./tools/build.sh demo      # profil démo 5 boutons (Color/Scale/Spin/Reset)
 ```
 
-Modèles connus dans `tools/make_profile.js` (objet `DEVICES`) : `xl` = `20GAT9902`,
-`mk2` = `20GBA9901`. Le `Device.UUID` et les métadonnées OS/app (objet `ENV`) sont ceux des
-machines de test — à adapter pour un autre poste/modèle.
+Les profils sont **pilotés par des layouts** dans `tools/profiles/<nom>/` :
+- `layout.json` — `{ name, device:"xl"|"mk2", imageDir, keys:[{coord,action,payload,title,image,showTitle}] }`
+- `images/` — les PNG référencés.
+
+Pour modifier le profil ALSTOM : édite `tools/profiles/alstom/layout.json` (et les images) puis
+`./tools/build.sh`. Modèles connus (`DEVICES` dans `make_profile.js`) : `xl` = `20GAT9902`,
+`mk2` = `20GBA9901`. `Device.UUID` et métadonnées OS/app (`ENV`) = machines de test.
 
 ---
 

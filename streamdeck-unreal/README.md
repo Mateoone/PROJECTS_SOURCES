@@ -64,11 +64,13 @@ affiche les instructions reçues en temps réel, avec un panneau pour pousser ti
 Paquets prêts dans `dist/` (régénérables) :
 
 ```bash
-./tools/build.sh           # -> dist/dev.mip.unreal.streamDeckPlugin + dist/UnrealBridge.streamDeckProfile (XL)
-./tools/build.sh mk2       # profil pour Stream Deck MK.2 (5x3) au lieu de XL
+./tools/build.sh           # -> .streamDeckPlugin + profil ALSTOM_MODULARITY_01 (19 touches, XL)
+./tools/build.sh demo      # profil démo 5 boutons à la place
 ```
 
-Installation et mapping des boutons : voir [INSTALL.md](INSTALL.md).
+Le profil par défaut est **ALSTOM_MODULARITY_01** : 4 emplacements (`EMPLACEMENTA…D`) + 15 modules
+(`MODULE1…MODULE15`). Les profils sont pilotés par des layouts dans `tools/profiles/<nom>/`.
+Installation et mapping des touches : voir [INSTALL.md](INSTALL.md).
 
 ---
 

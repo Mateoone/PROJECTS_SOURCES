@@ -1,0 +1,159 @@
+{
+  "name": "ALSTOM_MODULARITY_01",
+  "device": "xl",
+  "imageDir": "images",
+  "keys": [
+    {
+      "coord": "0,0",
+      "action": "EMPLACEMENTA",
+      "payload": "{\"emplacement\":A}",
+      "title": "",
+      "image": "EMPLACEMENTA.png",
+      "showTitle": false
+    },
+    {
+      "coord": "3,0",
+      "action": "MODULE1",
+      "payload": "{\"module\":1}",
+      "title": "",
+      "image": "MODULE1.png",
+      "showTitle": true
+    },
+    {
+      "coord": "4,0",
+      "action": "MODULE2",
+      "payload": "{\"module\":2}",
+      "title": "",
+      "image": "MODULE2.png",
+      "showTitle": true
+    },
+    {
+      "coord": "5,0",
+      "action": "MODULE3",
+      "payload": "{\"module\":3}",
+      "title": "",
+      "image": "MODULE3.png",
+      "showTitle": true
+    },
+    {
+      "coord": "6,0",
+      "action": "MODULE4",
+      "payload": "{\"module\":4}",
+      "title": "",
+      "image": "MODULE4.png",
+      "showTitle": true
+    },
+    {
+      "coord": "7,0",
+      "action": "MODULE5",
+      "payload": "{\"module\":5}",
+      "title": "",
+      "image": "MODULE5.png",
+      "showTitle": true
+    },
+    {
+      "coord": "0,1",
+      "action": "EMPLACEMENTB",
+      "payload": "{\"emplacement\":B}",
+      "title": "",
+      "image": "EMPLACEMENTB.png",
+      "showTitle": false
+    },
+    {
+      "coord": "3,1",
+      "action": "MODULE6",
+      "payload": "{\"module\":6}",
+      "title": "",
+      "image": "MODULE6.png",
+      "showTitle": false
+    },
+    {
+      "coord": "4,1",
+      "action": "MODULE7",
+      "payload": "{\"module\":7}",
+      "title": "",
+      "image": "MODULE7.png",
+      "showTitle": false
+    },
+    {
+      "coord": "5,1",
+      "action": "MODULE8",
+      "payload": "{\"module\":8}",
+      "title": "",
+      "image": "MODULE8.png",
+      "showTitle": false
+    },
+    {
+      "coord": "6,1",
+      "action": "MODULE9",
+      "payload": "{\"module\":9}",
+      "title": "",
+      "image": "MODULE9.png",
+      "showTitle": false
+    },
+    {
+      "coord": "7,1",
+      "action": "MODULE10",
+      "payload": "{\"module\":1}",
+      "title": "",
+      "image": "MODULE10.png",
+      "showTitle": false
+    },
+    {
+      "coord": "0,2",
+      "action": "EMPLACEMENTC",
+      "payload": "{\"emplacement\":C}",
+      "title": "",
+      "image": "EMPLACEMENTC.png",
+      "showTitle": false
+    },
+    {
+      "coord": "3,2",
+      "action": "MODULE11",
+      "payload": "{\"module\":11}",
+      "title": "",
+      "image": "MODULE11.png",
+      "showTitle": false
+    },
+    {
+      "coord": "4,2",
+      "action": "MODULE12",
+      "payload": "{\"module\":12}",
+      "title": "",
+      "image": "MODULE12.png",
+      "showTitle": false
+    },
+    {
+      "coord": "5,2",
+      "action": "MODULE513",
+      "payload": "{\"module\":13}",
+      "title": "",
+      "image": "MODULE513.png",
+      "showTitle": false
+    },
+    {
+      "coord": "6,2",
+      "action": "MODULE14",
+      "payload": "{\"module\":14}",
+      "title": "",
+      "image": "MODULE14.png",
+      "showTitle": false
+    },
+    {
+      "coord": "7,2",
+      "action": "MODULE15",
+      "payload": "{\"module\":15}",
+      "title": "",
+      "image": "MODULE15.png",
+      "showTitle": false
+    },
+    {
+      "coord": "0,3",
+      "action": "EMPLACEMENTD",
+      "payload": "{\"emplacement\":D}",
+      "title": "",
+      "image": "EMPLACEMENTD.png",
+      "showTitle": false
+    }
+  ]
+}
