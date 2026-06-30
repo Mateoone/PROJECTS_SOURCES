@@ -165,8 +165,9 @@ Regarde l'`Output Log` d'Unreal : catégorie `LogStreamDeckBridge` (et `LogTemp`
 
 ## 8. Limites connues / suites possibles
 
-- Connexion TCP **par appui** (pas persistante) → latence faible mais reconnexion à chaque press.
-  *Suite* : socket persistant + reconnexion auto.
+- Connexion TCP **persistante** côté plugin (mutualisée par `host:port`, reconnexion auto avec
+  backoff). Côté UE le serveur n'accepte **qu'un client à la fois** → suffisant pour un Stream Deck,
+  à étendre si plusieurs surfaces doivent se connecter en parallèle.
 - **Pas d'authentification** sur le port TCP → localhost/LAN de confiance uniquement.
 - Pas de **dials** (Stream Deck +) pour les valeurs analogiques.
 - Plugin Stream Deck en JS « brut » → migration possible vers `@elgato/streamdeck` (TypeScript) + CLI.

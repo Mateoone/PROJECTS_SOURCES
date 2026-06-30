@@ -102,7 +102,8 @@ Le parseur accepte aussi une ligne brute (`Fire\n`) comme nom d'action, pratique
 
 ## Roadmap
 - [ ] Icônes PNG + packaging `.streamDeckPlugin`.
-- [ ] Reconnexion TCP persistante + multi-client (au lieu d'une connexion par appui).
+- [x] Connexion TCP persistante + reconnexion auto (backoff), mutualisée par `host:port`.
+- [ ] Côté UE : accepter plusieurs clients simultanés (actuellement 1 à la fois).
 - [ ] Dials (Stream Deck +) → valeurs analogiques (intensité, vitesse…).
 - [ ] Plugin Stream Deck en TypeScript via `@elgato/streamdeck` + CLI.
 - [ ] Auth/token sur le port TCP si exposé hors localhost.

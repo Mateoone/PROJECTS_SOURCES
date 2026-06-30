@@ -8,8 +8,10 @@ chaque côté peut être réécrit indépendamment (autre langage, autre client,
 - **TCP**, par défaut `127.0.0.1:5051` (le serveur écoute sur `0.0.0.0`).
 - Encodage **UTF-8**.
 - **Une trame = une ligne** = un objet JSON terminé par `\n` (LF). `\r\n` toléré.
-- Le serveur UE accepte **un client à la fois** ; le plugin Stream Deck ouvre une
-  connexion courte par appui (puis la referme après ~250 ms / réception du feedback).
+- Le serveur UE accepte **un client à la fois**. Le plugin Stream Deck ouvre **une connexion
+  persistante par endpoint `host:port`**, partagée par tous les boutons qui le ciblent
+  (comptage de références), avec **reconnexion automatique** (backoff exponentiel 1 s → 10 s).
+  La connexion est fermée quand le dernier bouton qui l'utilise disparaît.
 
 ## Stream Deck → Unreal (commande)
 
@@ -49,9 +51,10 @@ Fire            ← ligne brute = action "Fire" (debug uniquement)
 {"action":"<string>","state":"<string>"}\n
 ```
 
-Le plugin Stream Deck lit cette ligne (fenêtre de lecture ouverte après l'envoi) et met à jour
-le **titre du bouton** avec `state`. Si UE n'envoie rien, le bouton affiche simplement ✓ après
-un envoi réussi.
+Le plugin Stream Deck lit cette ligne sur la connexion persistante et met à jour le **titre**
+de **tous les boutons abonnés à cette `action`** (le routage se fait par nom d'action, car UE
+n'a pas la notion de bouton individuel). Si UE n'envoie rien, le bouton affiche simplement ✓
+après un envoi réussi.
 
 ## Threading (côté UE) — important
 
