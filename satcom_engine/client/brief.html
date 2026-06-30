@@ -137,6 +137,7 @@
         <button id="run">Estimer</button>
         <button id="toCov" class="ghost">Ouvrir dans la Couverture 3D →</button>
         <button id="toScen" class="ghost">Voir les 4 scénarios →</button>
+        <button id="reset" class="ghost" title="Vider le formulaire et l'estimation">Réinitialiser le brief</button>
       </div>
       <div class="err" id="err"></div>
     </div>
@@ -342,6 +343,7 @@ $("toCov").addEventListener("click", ()=>{
   location.href="coverage3d.html?"+new URLSearchParams(p).toString();
 });
 $("toScen").addEventListener("click", ()=>{ saveForm(); location.href="scenarios.html"; });
+$("reset").addEventListener("click", ()=>{ localStorage.removeItem("satcom_brief"); location.href="brief.html"; });
 restoreForm(); syncZoneInfo(); run();
 </script>
 </body>

@@ -8,5 +8,6 @@ __pycache__/
 *.pyc
 .pytest_cache/
 tests/
+client/_gen/
 *.zip
 .DS_Store

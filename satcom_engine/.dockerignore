@@ -4,5 +4,6 @@ __pycache__/
 .venv/
 .git/
 tests/
+client/_gen/
 *.zip
 *.md
