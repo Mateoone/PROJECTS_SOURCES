@@ -49,6 +49,11 @@
             box-shadow:0 8px 30px rgba(0,0,0,.5);font-size:12px;backdrop-filter:blur(6px)}
   #satpanel .ph{position:relative;height:150px;background:#05100c;display:flex;align-items:center;justify-content:center}
   #satpanel .ph img,#satpanel .ph video{width:100%;height:100%;object-fit:cover;background:#05100c}
+  #sp_vid{cursor:zoom-in}
+  #sp_vid.zoomed{cursor:zoom-out;box-shadow:0 18px 60px rgba(0,0,0,.6)}
+  #vidback{position:fixed;inset:0;background:rgba(3,6,10,.72);z-index:1000;opacity:0;pointer-events:none;
+           transition:opacity .42s;backdrop-filter:blur(2px)}
+  #vidback.on{opacity:1;pointer-events:auto}
   #satpanel .ph .noimg{color:rgba(46,230,166,.5);font-size:34px}
   #satpanel .hd{position:absolute;left:10px;top:8px;right:34px}
   #satpanel .hd .nm{font:600 14px ui-monospace,monospace;color:#fff;text-shadow:0 1px 3px #000}
@@ -393,9 +398,39 @@ function updateSatLive(){ const s=panelSat; if(!s) return; const c=s.prop&&s.pro
   const sp=carto(c); $("sp_pos").textContent=sp.lat.toFixed(2)+"°, "+sp.lon.toFixed(2)+"°";
   if(activeSite){ const el=elevToSat(activeSite.lat,activeSite.lon,sp.lat,sp.lon,sp.h);
     $("sp_el").textContent=(el>=0?el.toFixed(0)+"° ":"sous horizon ")+"("+activeSite.name+")"; } }
-$("sp_close").onclick=()=>{ $("satpanel").style.display="none"; $("sp_vid").pause(); panelSat=null; };
+$("sp_close").onclick=()=>{ if(vidZoomed) unzoomVideo(); $("satpanel").style.display="none"; $("sp_vid").pause(); panelSat=null; };
 viewer.screenSpaceEventHandler.setInputAction(ev=>{ const p=viewer.scene.pick(ev.position);
   if(p&&p.id&&satByEntity.has(p.id)) showSat(satByEntity.get(p.id)); }, Cesium.ScreenSpaceEventType.LEFT_CLICK);
+
+// --- zoom video : clic -> 720p de maniere fluide (FLIP), reclic/Échap -> reduit ---
+const _vb=document.createElement("div"); _vb.id="vidback"; document.body.appendChild(_vb);
+const _vid=$("sp_vid"), _ph=_vid.parentNode; let vidZoomed=false;
+function _flip(first){
+  const last=_vid.getBoundingClientRect();
+  const dx=first.left-last.left, dy=first.top-last.top, sx=(first.width/last.width)||1, sy=(first.height/last.height)||1;
+  _vid.style.transformOrigin="top left"; _vid.style.transition="none";
+  _vid.style.transform=`translate(${dx}px,${dy}px) scale(${sx},${sy})`;
+  _vid.getBoundingClientRect();
+  requestAnimationFrame(()=>{ _vid.style.transition="transform .42s cubic-bezier(.22,.61,.36,1)"; _vid.style.transform="none"; });
+}
+function zoomVideo(){
+  if(vidZoomed || _vid.style.display==="none") return;
+  const first=_vid.getBoundingClientRect();
+  document.body.appendChild(_vid); _vid.muted=true; _vid.classList.add("zoomed");
+  const w=Math.min(1280, innerWidth*0.94, innerHeight*0.86*16/9), h=w*9/16;
+  Object.assign(_vid.style,{position:"fixed",zIndex:"1002",objectFit:"contain",borderRadius:"14px",
+    width:w+"px",height:h+"px",left:((innerWidth-w)/2)+"px",top:((innerHeight-h)/2)+"px"});
+  _vid.play().catch(()=>{}); _flip(first); _vb.classList.add("on"); vidZoomed=true;
+}
+function unzoomVideo(){
+  if(!vidZoomed) return;
+  const first=_vid.getBoundingClientRect(); _vid.classList.remove("zoomed");
+  ["position","zIndex","objectFit","borderRadius","width","height","left","top"].forEach(k=>_vid.style[k]="");
+  _ph.insertBefore(_vid,_ph.firstChild); _flip(first); _vb.classList.remove("on"); vidZoomed=false;
+}
+_vid.addEventListener("click",()=> vidZoomed?unzoomVideo():zoomVideo());
+_vb.addEventListener("click",unzoomVideo);
+window.addEventListener("keydown",e=>{ if(e.key==="Escape"&&vidZoomed) unzoomVideo(); });
 
 // ---------- readouts + controles timeline ----------
 function fmtClock(t){ const d=new Date(startMs+t*1000),p=n=>String(n).padStart(2,"0");
