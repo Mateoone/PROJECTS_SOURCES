@@ -1,0 +1,310 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SATCOM — Qualification client & estimation</title>
+<style>
+  :root{ --bg:#fbfaf7; --panel:#ffffff; --ink:#23231f; --muted:#6b6a63; --line:#e4e2da;
+         --accent:#534ab7; --ok:#1d9e75; --warn:#c79a22; --bad:#d85a30; --geo:#534ab7; --leo:#1d9e75; }
+  @media (prefers-color-scheme: dark){
+    :root{ --bg:#1a1a18; --panel:#232320; --ink:#e8e6dd; --muted:#a3a199; --line:#34332f;
+           --accent:#afa9ec; --ok:#5dcaa5; --warn:#e3c46b; --bad:#f0997b; --geo:#afa9ec; --leo:#5dcaa5; } }
+  *{box-sizing:border-box}
+  body{margin:0;font:15px/1.55 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;background:var(--bg);color:var(--ink);padding:20px}
+  .wrap{max-width:1180px;margin:0 auto}
+  h1{font-size:20px;font-weight:600;margin:0 0 4px}
+  .sub{color:var(--muted);margin:0 0 16px;font-size:13px;max-width:900px}
+  nav.topnav{display:flex;gap:4px;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:4px;margin:0 0 16px;width:fit-content}
+  nav.topnav a{font-size:13px;color:var(--muted);text-decoration:none;padding:6px 14px;border-radius:7px;font-weight:600}
+  nav.topnav a.on{background:var(--accent);color:#fff} nav.topnav a:hover{color:var(--ink)}
+  .grid{display:grid;grid-template-columns:1.15fr 1fr;gap:18px;align-items:start}
+  @media(max-width:900px){.grid{grid-template-columns:1fr}}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px 18px}
+  fieldset{border:1px solid var(--line);border-radius:10px;margin:0 0 14px;padding:10px 14px 14px}
+  legend{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;padding:0 6px;font-weight:700}
+  label{display:block;font-size:12px;color:var(--muted);margin:9px 0 3px}
+  input,select{width:100%;padding:7px 9px;border:1px solid var(--line);border-radius:7px;background:var(--bg);color:var(--ink);font:inherit;font-size:13px}
+  .row2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  .row3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px}
+  .hint{font-size:11px;color:var(--muted);margin-top:3px}
+  button{padding:10px 16px;border:0;border-radius:8px;background:var(--accent);color:#fff;font:inherit;font-weight:600;cursor:pointer}
+  button.ghost{background:transparent;border:1px solid var(--accent);color:var(--accent)}
+  button:disabled{opacity:.5;cursor:wait}
+  .actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:6px}
+  .est h2{font-size:15px;font-weight:600;margin:0 0 4px}
+  .syn{font-size:13.5px;line-height:1.5;background:var(--bg);border:1px solid var(--line);border-radius:9px;padding:11px 13px;margin:6px 0 12px}
+  .syn b{color:var(--ink)}
+  .kpis{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  .kpi{background:var(--bg);border:1px solid var(--line);border-radius:9px;padding:9px 11px}
+  .kpi .k{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.03em}
+  .kpi .v{font-size:17px;font-weight:600;margin-top:2px}
+  .tag{display:inline-block;border-radius:6px;padding:2px 9px;font-size:11.5px;font-weight:700}
+  .t-ok{background:rgba(29,158,117,.15);color:var(--ok)} .t-warn{background:rgba(199,154,34,.16);color:var(--warn)} .t-bad{background:rgba(216,90,48,.15);color:var(--bad)}
+  .ant{margin-top:12px;font-size:12.5px}
+  .ant table{width:100%;border-collapse:collapse;margin-top:5px}
+  .ant td{padding:4px 6px;border-bottom:1px solid var(--line)}
+  .ant td.r{text-align:right;font-variant-numeric:tabular-nums}
+  .flag{font-size:12px;color:var(--warn);margin-top:6px}
+  .foot{color:var(--muted);font-size:11.5px;margin-top:16px;line-height:1.6}
+  .err{color:var(--bad);font-size:12.5px;margin-top:8px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <nav class="topnav"><a href="coverage3d.html">Couverture 3D</a><a href="scenarios.html">4 scénarios</a><a href="brief.html" class="on">Qualification</a></nav>
+  <h1>Qualification client &amp; estimation rapide</h1>
+  <p class="sub">Saisis les réponses aux questions clés ; l'outil propose une <b>bande</b>, une <b>orbite</b>, une <b>classe d'antenne</b>
+  et un <b>bilan de liaison</b> indicatif (moteur SATCOM), puis pousse la géographie vers la Couverture 3D.</p>
+
+  <div class="grid">
+    <!-- ====== Formulaire ====== -->
+    <div class="card">
+      <fieldset><legend>Contexte &amp; zone</legend>
+        <div class="row2">
+          <div><label>Pays de l'utilisateur final</label><input id="country" placeholder="ex. France" value=""></div>
+          <div><label>Zone d'opération</label>
+            <select id="zone"></select></div>
+        </div>
+        <label>Couverture requise</label>
+        <select id="coverage"><option value="local">Locale (théâtre)</option><option value="regional" selected>Régionale</option><option value="global">Globale</option></select>
+      </fieldset>
+
+      <fieldset><legend>Plateforme &amp; mission</legend>
+        <div class="row2">
+          <div><label>Type d'application</label>
+            <select id="platform">
+              <option value="air">Aéroporté (UAV / avion)</option>
+              <option value="sea">Maritime (USV / navire)</option>
+              <option value="land" selected>Terrestre (véhicule / fixe)</option>
+            </select></div>
+          <div><label>Quantité de plateformes</label><input id="qty" type="number" value="1" min="1"></div>
+        </div>
+        <div class="row2">
+          <div><label>Mission</label>
+            <select id="mission">
+              <option value="isr">ISR (vidéo temps réel)</option>
+              <option value="combat">Véhicule de combat en réseau</option>
+              <option value="data">Liaison de données</option>
+              <option value="comms" selected>Communication / état-major</option>
+            </select></div>
+          <div><label>Environnement</label>
+            <select id="env">
+              <option value="open" selected>Ciel ouvert</option>
+              <option value="urban">Urbain dense (masquage)</option>
+            </select></div>
+        </div>
+      </fieldset>
+
+      <fieldset><legend>Liaison demandée</legend>
+        <div class="row3">
+          <div><label>Bande</label>
+            <select id="band"><option value="auto" selected>À recommander</option><option value="L">L</option><option value="Ku">Ku</option><option value="Ka">Ka</option></select></div>
+          <div><label>Usage principal</label>
+            <select id="usage">
+              <option value="voice">Voix</option>
+              <option value="image">Image</option>
+              <option value="data" selected>Échange de data</option>
+              <option value="visio">Visioconférence</option>
+              <option value="video">Vidéo HD</option>
+            </select></div>
+          <div><label>Débit cible (Mbps)</label><input id="rate" type="number" value="2" step="0.1" min="0.05"></div>
+        </div>
+        <label>Contrainte d'antenne (installation)</label>
+        <select id="antmax"><option value="99">Aucune contrainte</option><option value="19">≤ 1,0 m</option><option value="15">≤ 0,6 m</option><option value="10.8">Compacte (nano)</option><option value="5">Manpack</option></select>
+      </fieldset>
+
+      <fieldset><legend>Satellite &amp; modem (si connus)</legend>
+        <div class="row2">
+          <div><label>Opérateur</label>
+            <select id="operator"><option value="todo" selected>À définir</option><option value="cust">Sourcé client</option><option value="getsat">Sourcé GetSAT</option></select></div>
+          <div><label>Longitude GEO (°E, optionnel)</label><input id="satlon" type="number" placeholder="auto (meilleure)" step="0.1"></div>
+        </div>
+        <div class="row3">
+          <div><label>EIRP (dBW)</label><input id="eirp" type="number" placeholder="générique"></div>
+          <div><label>G/T sat (dB/K)</label><input id="satgt" type="number" placeholder="générique"></div>
+          <div><label>SFD (dBW/m²)</label><input id="sfd" type="number" placeholder="-90"></div>
+        </div>
+        <div class="row2">
+          <div><label>Back-off entrée (dB)</label><input id="ibo" type="number" placeholder="7"></div>
+          <div><label>Bilan de liaison fourni ?</label><select id="lbdone"><option value="no" selected>Non — à calculer</option><option value="yes">Oui — disponible</option></select></div>
+        </div>
+        <label>Modem (optionnel)</label><input id="modem" placeholder="ex. iDirect, Comtech, intégré">
+      </fieldset>
+
+      <div class="actions">
+        <button id="run">Estimer</button>
+        <button id="toCov" class="ghost">Ouvrir dans la Couverture 3D →</button>
+        <button id="toScen" class="ghost">Voir les 4 scénarios →</button>
+      </div>
+      <div class="err" id="err"></div>
+    </div>
+
+    <!-- ====== Estimation ====== -->
+    <div class="card est">
+      <h2>Estimation</h2>
+      <div class="syn" id="syn">Renseigne le formulaire puis « Estimer ».</div>
+      <div class="kpis">
+        <div class="kpi"><div class="k">Bande retenue</div><div class="v" id="k_band">—</div></div>
+        <div class="kpi"><div class="k">Orbite recommandée</div><div class="v" id="k_orbit">—</div></div>
+        <div class="kpi"><div class="k">Élévation GEO (zone)</div><div class="v" id="k_el">—</div></div>
+        <div class="kpi"><div class="k">Atténuation pluie</div><div class="v" id="k_rain">—</div></div>
+        <div class="kpi"><div class="k">Antenne minimale</div><div class="v" id="k_ant">—</div></div>
+        <div class="kpi"><div class="k">Faisabilité liaison</div><div class="v" id="k_feas">—</div></div>
+      </div>
+      <div class="ant" id="antsweep"></div>
+      <div class="flag" id="export"></div>
+      <p class="foot">Estimation indicative (moteur SATCOM, modèle pluie ITU-R P.618). Antennes référencées Ka (le G/T réel varie avec la bande).
+      Si les paramètres satellite ne sont pas fournis, des valeurs génériques par bande sont utilisées — à confirmer par un bilan de liaison formel.</p>
+    </div>
+  </div>
+</div>
+
+<script>
+const API_DEFAULT = "https://satcom-coverage-engine-58899663812.europe-west9.run.app";
+const Re=6378.137, H_GEO=35786;
+const $ = id => document.getElementById(id);
+
+// Zones -> site représentatif + pluie R0.01 (mm/h)
+const ZONES = [
+  {key:"eu",  label:"Europe",                 lat:48.85, lon:2.35,  rain:30},
+  {key:"seu", label:"Europe du Sud",          lat:41.90, lon:12.50, rain:40},
+  {key:"med", label:"Méditerranée orientale", lat:34.00, lon:33.00, rain:35},
+  {key:"gulf",label:"Golfe / Moyen-Orient",   lat:24.45, lon:54.30, rain:20},
+  {key:"afr", label:"Afrique (Sahel)",        lat:14.00, lon:0.00,  rain:50},
+  {key:"asia",label:"Asie (Sud / mousson)",   lat:18.00, lon:78.00, rain:60},
+  {key:"am",  label:"Amériques",              lat:39.00, lon:-98.0, rain:35},
+  {key:"glob",label:"Global",                 lat:45.00, lon:0.00,  rain:40},
+];
+ZONES.forEach((z,i)=>$("zone").add(new Option(z.label,i)));
+$("zone").value="0";
+
+const USAGE_RATE = { voice:0.064, image:0.256, data:2, visio:4, video:8 };
+const BAND = {
+  L:  {up:1640, down:1540, eirp:45, gt:0,  sfd:-110, label:"L"},
+  Ku: {up:14000,down:12000,eirp:52, gt:7,  sfd:-95,  label:"Ku"},
+  Ka: {up:30000,down:20000,eirp:60, gt:10, sfd:-90,  label:"Ka"},
+};
+const ANTENNAS = [
+  {label:"Manpack",  gt:5},
+  {label:"Nano",     gt:10.8},
+  {label:"0,6 m",    gt:15},
+  {label:"1,0 m",    gt:19},
+];
+
+function geoElev(siteLat, siteLon, satLon){
+  const a=siteLat*Math.PI/180, dl=(satLon-siteLon)*Math.PI/180;
+  const cg=Math.cos(a)*Math.cos(dl), g=Math.acos(Math.min(1,Math.max(-1,cg)));
+  return Math.atan2(Math.cos(g)-Re/(Re+H_GEO), Math.sin(g))*180/Math.PI;
+}
+function kAlpha(f){ return f<3?{k:0.0001,a:0.9}:(f<12?{k:0.00301,a:1.20}:{k:0.0751,a:1.099}); }
+function rainAtten(R, fGHz, elDeg, latDeg){
+  if(elDeg<=0) return 0; const el=elDeg*Math.PI/180;
+  const hR=Math.abs(latDeg)<23?5:Math.max(0,5-0.075*(Math.abs(latDeg)-23)); if(hR<=0)return 0;
+  const Ls=hR/Math.sin(el), Lg=Ls*Math.cos(el), {k,a}=kAlpha(fGHz), gamma=k*Math.pow(R,a);
+  const r=1/(1+0.78*Math.sqrt(Lg*gamma/fGHz)-0.38*(1-Math.exp(-2*Lg)));
+  return gamma*Ls*Math.max(0.1,Math.min(2.5,r));
+}
+async function post(base, body){
+  const r=await fetch(base+"/link",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)});
+  if(!r.ok) throw new Error("HTTP "+r.status); return r.json();
+}
+
+function pickBand(){
+  const b=$("band").value;
+  if(b!=="auto") return b;
+  // auto : data rate + pluie zone -> Ka si fort débit & pluie modérée, sinon Ku, L si très faible débit
+  const rate=+$("rate").value, z=ZONES[+$("zone").value];
+  if(rate<=0.1) return "L";
+  if(rate>=2 && z.rain<=35) return "Ka";
+  return "Ku";
+}
+function maskOf(){ const p=$("platform").value, urban=$("env").value==="urban";
+  if(urban) return 30; if(p==="air") return 5; if(p==="sea") return 7; return 10; }
+function orbitReco(el, mask){
+  const cov=$("coverage").value, mission=$("mission").value, plat=$("platform").value;
+  const reasons=[];
+  let leo=0;
+  if(cov==="global"){ leo+=2; reasons.push("couverture globale"); }
+  if(mission==="isr"||mission==="visio"){ leo+=1; reasons.push("temps réel / faible latence"); }
+  if(plat==="air"){ leo+=1; reasons.push("forte mobilité aéroportée"); }
+  if(el<25){ leo+=1; reasons.push("élévation GEO basse ("+el.toFixed(0)+"°)"); }
+  if(mask>=25){ leo+=2; reasons.push("masquage urbain (GEO souvent masqué)"); }
+  if(leo>=2) return {orbit:"LEO", why:reasons.join(", ")||"contexte favorable au LEO"};
+  if(leo===1) return {orbit:"GEO + secours LEO", why:reasons.join(", ")};
+  return {orbit:"GEO", why:"zone régionale, plateforme peu mobile, élévation suffisante"};
+}
+
+let lastCtx=null;
+async function run(){
+  $("run").disabled=true; $("run").textContent="Calcul…"; $("err").textContent="";
+  const base=API_DEFAULT;
+  const z=ZONES[+$("zone").value];
+  const band=pickBand(), bp=BAND[band];
+  const mask=maskOf();
+  const satLon = $("satlon").value!=="" ? +$("satlon").value : z.lon; // défaut : meilleure (sous-satellite)
+  const el = geoElev(z.lat, z.lon, satLon);
+  const rain = rainAtten(z.rain, bp.down/1000, el, z.lat);
+  const sat = {
+    eirp: $("eirp").value!==""? +$("eirp").value : bp.eirp,
+    gt:   $("satgt").value!==""? +$("satgt").value : bp.gt,
+    sfd:  $("sfd").value!==""? +$("sfd").value : bp.sfd,
+    ibo:  $("ibo").value!==""? +$("ibo").value : 7,
+  };
+  const rate=+$("rate").value, antMax=+$("antmax").value;
+  lastCtx = {z, band, mask, gt:10.8};
+
+  try{
+    const sweep=[];
+    for(const a of ANTENNAS){
+      const d=await post(base,{ site:{name:z.label,lat_deg:z.lat,lon_deg:z.lon,elevation_mask_deg:mask},
+        terminal:{gt_dbk:a.gt}, carrier:{uplink_mhz:bp.up,downlink_mhz:bp.down},
+        satellite_geo:{name:"sat",longitude_deg:satLon,eirp_dbw:sat.eirp,gt_dbk:sat.gt,transponder_bw_mhz:72,sfd_dbw_m2:sat.sfd,input_backoff_db:sat.ibo},
+        rain_margin_db: rain });
+      sweep.push({a, thr: d.feasible?(d.throughput_mbps||0):0, feasible:d.feasible, cn:(d.cn_required_db+d.link_margin_db)});
+    }
+    // antenne minimale qui ferme le débit, dans la limite de contrainte d'installation
+    const reco = sweep.find(s=>s.a.gt<=antMax && s.feasible && s.thr>=rate);
+    const orbit = orbitReco(el, mask);
+    const feasGeo = sweep.some(s=>s.a.gt<=antMax && s.feasible && s.thr>=rate);
+
+    $("k_band").textContent = band + ($("band").value==="auto"?" (auto)":"");
+    $("k_orbit").innerHTML = orbit.orbit;
+    $("k_el").textContent = el.toFixed(0)+"°";
+    $("k_rain").textContent = rain.toFixed(1)+" dB";
+    $("k_ant").innerHTML = reco ? '<span class="tag t-ok">'+reco.a.label+'</span>'
+       : (orbit.orbit.includes("LEO") ? '<span class="tag t-warn">LEO requis</span>' : '<span class="tag t-bad">au-delà '+$("antmax").selectedOptions[0].text+'</span>');
+    $("k_feas").innerHTML = feasGeo ? '<span class="tag t-ok">GEO ferme</span>'
+       : (orbit.orbit.includes("LEO") ? '<span class="tag t-warn">via LEO</span>' : '<span class="tag t-bad">non — agrandir antenne / bande</span>');
+
+    $("antsweep").innerHTML = '<b>Débit utile estimé par antenne (GEO '+band+', pluie '+rain.toFixed(1)+' dB)</b>'+
+      '<table>'+sweep.map(s=>`<tr><td>${s.a.label} (G/T ${s.a.gt})</td><td class="r">${s.feasible?s.thr.toFixed(1)+" Mbps":"—"}</td>`+
+      `<td class="r">${s.a.gt<=antMax?(s.thr>=rate?'<span class="tag t-ok">OK</span>':'<span class="tag t-bad">&lt; '+rate+'</span>'):'<span class="tag t-warn">hors contrainte</span>'}</td></tr>`).join("")+'</table>';
+
+    const ant = reco? reco.a.label : (orbit.orbit.includes("LEO")?"constellation LEO":"antenne plus grande");
+    $("syn").innerHTML = `Zone <b>${z.label}</b> (él. GEO ~${el.toFixed(0)}°). Pour <b>${$("usage").selectedOptions[0].text}</b> à `+
+      `<b>${rate} Mbps</b> en bande <b>${band}</b>, orbite recommandée : <b>${orbit.orbit}</b> (${orbit.why}). `+
+      `Antenne pressentie : <b>${ant}</b>. Pluie 0,01 % : ~${rain.toFixed(1)} dB`+
+      (band==="Ka"&&rain>6?` — fading Ka important, prévoir marge ACM ou repli bande basse/X.`:`.`)+
+      ($("lbdone").value==="no"?` Bilan de liaison à formaliser (cf. infos satellite).`:``);
+
+    const c=$("country").value.trim();
+    $("export").textContent = c ? `Contrôle export à vérifier pour : ${c} (utilisateur final).` : "Renseigner le pays de l'utilisateur final (contrôle export).";
+  }catch(e){ $("err").textContent="Échec moteur : "+e.message; }
+  $("run").disabled=false; $("run").textContent="Estimer";
+}
+
+// usage -> débit par défaut
+$("usage").addEventListener("change", e=>{ $("rate").value = USAGE_RATE[e.target.value]; });
+
+$("run").addEventListener("click", run);
+$("toCov").addEventListener("click", ()=>{
+  const z=ZONES[+$("zone").value], mask=maskOf();
+  const q=new URLSearchParams({ name:z.label, lat:z.lat, lon:z.lon, mask:mask, gt:lastCtx?lastCtx.gt:10.8, band:pickBand() });
+  location.href="coverage3d.html?"+q.toString();
+});
+$("toScen").addEventListener("click", ()=> location.href="scenarios.html");
+run();
+</script>
+</body>
+</html>
