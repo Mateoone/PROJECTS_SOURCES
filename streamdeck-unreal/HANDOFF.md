@@ -127,16 +127,21 @@ Appui → ✓ si UE a reçu, ⚠️ si la connexion échoue.
 
 ---
 
-## 5. Tester sans matériel Stream Deck
+## 5. Tester sans matériel Stream Deck / sans UE
 
-Le côté UE est un simple serveur TCP : on peut le piloter avec `netcat`.
-
+**a) Piloter UE sans Stream Deck** — le côté UE est un simple serveur TCP, pilotable avec `netcat` :
 ```bash
 printf '{"action":"Fire","payload":{"power":10}}\n' | nc 127.0.0.1 5051
 printf 'Fire\n' | nc 127.0.0.1 5051          # ligne brute = nom d'action (debug)
 ```
-
 Regarde l'`Output Log` d'Unreal : catégorie `LogStreamDeckBridge` (et `LogTemp` pour la démo).
+
+**b) Vérifier le Stream Deck sans UE** — un faux UE qui affiche les instructions reçues en live :
+```bash
+node tools/mock-ue/server.js        # puis ouvrir http://localhost:8787
+```
+Il ouvre le même serveur TCP (5051) ; le plugin Stream Deck s'y connecte sans modif. Voir
+[tools/mock-ue/README.md](tools/mock-ue/README.md).
 
 ---
 
