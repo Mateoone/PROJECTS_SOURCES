@@ -85,7 +85,10 @@ sd.on("message", (data) => {
 		}
 		case "keyDown": {
 			const cfg = settingsFor(context);
-			sendToUnreal(cfg)
+			sendToUnreal(cfg, (state) => {
+				// Optional feedback line from UE -> update the button title live.
+				if (state) setTitle(context, state);
+			})
 				.then(() => showOk(context))
 				.catch((err) => {
 					console.error("[unreal-bridge] UE send failed:", err.message);
@@ -106,25 +109,54 @@ sd.on("close", () => process.exit(0));
 sd.on("error", (e) => console.error("[unreal-bridge] SD ws error:", e.message));
 
 // ---- TCP push to Unreal ----------------------------------------------------
-function sendToUnreal(cfg) {
+// Resolves once the command is written (= UE reachable). If UE sends a feedback
+// line back ({"action","state"}) before the read window closes, onState(state) fires.
+function sendToUnreal(cfg, onState) {
 	return new Promise((resolve, reject) => {
 		const client = new net.Socket();
-		let settled = false;
-		const done = (err) => {
-			if (settled) return;
-			settled = true;
+		let settled = false;   // write succeeded -> promise resolved
+		let closed = false;
+		let rxBuffer = "";
+
+		const finish = () => {
+			if (closed) return;
+			closed = true;
 			client.destroy();
-			err ? reject(err) : resolve();
 		};
 
 		client.setTimeout(2000);
-		client.once("timeout", () => done(new Error("UE connection timeout")));
-		client.once("error", (e) => done(e));
+		client.once("timeout", () => {
+			if (!settled) reject(new Error("UE connection timeout"));
+			finish();
+		});
+		client.once("error", (e) => {
+			if (!settled) reject(e);
+			finish();
+		});
+
+		// Read an optional feedback line from UE (half-open: we keep reading after write).
+		client.on("data", (chunk) => {
+			rxBuffer += chunk.toString("utf8");
+			const nl = rxBuffer.indexOf("\n");
+			if (nl === -1) return;
+			const line = rxBuffer.slice(0, nl).trim();
+			try {
+				const obj = JSON.parse(line);
+				if (typeof onState === "function" && obj.state !== undefined) onState(obj.state);
+			} catch (e) {
+				/* ignore non-JSON feedback */
+			}
+			finish(); // got our one feedback line, done early
+		});
 
 		client.connect(Number(cfg.port), cfg.host, () => {
-			// payload may be a raw JSON string or plain text; embed as-is if it looks like JSON.
 			const line = buildCommandLine(cfg.action, cfg.payload);
-			client.write(line, () => done(null));
+			client.write(line, () => {
+				settled = true;
+				resolve();
+				// Keep the socket open briefly to catch a feedback line, then close.
+				setTimeout(finish, 250);
+			});
 		});
 	});
 }
