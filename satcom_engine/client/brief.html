@@ -156,12 +156,19 @@
       </div>
       <div class="ant" id="antsweep"></div>
       <div class="flag" id="export"></div>
+      <div class="actions" style="margin-top:12px">
+        <button id="expPdf">Exporter PDF</button>
+        <button id="expJson" class="ghost">Exporter JSON</button>
+        <button id="impJsonBtn" class="ghost">Importer JSON</button>
+        <input id="impJson" type="file" accept="application/json,.json" hidden>
+      </div>
       <p class="foot">Estimation indicative (moteur SATCOM, modèle pluie ITU-R P.618). Antennes référencées Ka (le G/T réel varie avec la bande).
       Si les paramètres satellite ne sont pas fournis, des valeurs génériques par bande sont utilisées — à confirmer par un bilan de liaison formel.</p>
     </div>
   </div>
 </div>
 
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script>
 const API_DEFAULT = "https://satcom-coverage-engine-58899663812.europe-west9.run.app";
 const Re=6378.137, H_GEO=35786;
@@ -263,7 +270,7 @@ function orbitReco(el, mask){
   return {orbit:"GEO", why:"zone régionale, plateforme peu mobile, élévation suffisante"};
 }
 
-let lastCtx=null, lastEst=null;
+let lastCtx=null, lastEst=null, lastSweep=null;
 async function run(){
   $("run").disabled=true; $("run").textContent="Calcul…"; $("err").textContent="";
   saveForm();
@@ -312,6 +319,7 @@ async function run(){
 
     const ant = reco? reco.a.label : (orbit.orbit.includes("LEO")?"constellation LEO":"antenne plus grande");
     lastEst = { band, orbit:orbit.orbit, ant, rate, usage:$("usage").selectedOptions[0].text, el:el.toFixed(0), rain:rain.toFixed(1), feas:feasGeo };
+    lastSweep = sweep;
     $("syn").innerHTML = `Zone <b>${z.name}</b> (él. GEO ~${el.toFixed(0)}°). Pour <b>${$("usage").selectedOptions[0].text}</b> à `+
       `<b>${rate} Mbps</b> en bande <b>${band}</b>, orbite recommandée : <b>${orbit.orbit}</b> (${orbit.why}). `+
       `Antenne pressentie : <b>${ant}</b>. Pluie 0,01 % : ~${rain.toFixed(1)} dB`+
@@ -344,6 +352,69 @@ $("toCov").addEventListener("click", ()=>{
 });
 $("toScen").addEventListener("click", ()=>{ saveForm(); location.href="scenarios.html"; });
 $("reset").addEventListener("click", ()=>{ localStorage.removeItem("satcom_brief"); location.href="brief.html"; });
+
+// ---- Export / import de la qualification (réexploitation future) ----
+const selTxt = id => { const e=$(id); return e && e.selectedOptions ? e.selectedOptions[0].text : (e?e.value:""); };
+function gatherData(){
+  const z=currentGeo(); const form={}; FORM_FIELDS.forEach(id=>{ const e=$(id); if(e) form[id]=e.value; });
+  return {
+    meta:{ outil:"SATCOM — Qualification GetSAT", version:1, genere_le:new Date().toISOString().slice(0,19).replace("T"," ")+" UTC" },
+    form,
+    zone:{ name:z.name, lat:z.lat, lon:z.lon, pluie_R001:z.rain },
+    client:{ pays:form.country, couverture:selTxt("coverage"), plateforme:selTxt("platform"), quantite:form.qty, mission:selTxt("mission"), environnement:selTxt("env") },
+    liaison:{ bande_demandee:selTxt("band"), usage:selTxt("usage"), debit_cible_mbps:+form.rate, contrainte_antenne:selTxt("antmax") },
+    satellite:{ operateur:selTxt("operator"), longitude_geo:form.satlon, eirp_dbw:form.eirp, gt_dbk:form.satgt, sfd:form.sfd, back_off_db:form.ibo, bilan_fourni:selTxt("lbdone"), modem:form.modem },
+    estimation: lastEst ? {
+      bande_retenue:$("k_band").textContent, orbite:$("k_orbit").textContent, elevation_geo:$("k_el").textContent,
+      pluie:$("k_rain").textContent, antenne_minimale:$("k_ant").textContent.trim(), faisabilite:$("k_feas").textContent.trim(),
+      synthese:$("syn").textContent.trim(),
+      antennes:(lastSweep||[]).map(s=>({classe:s.a.label, gt_dbk:s.a.gt, debit_mbps: s.feasible? +s.thr.toFixed(2):0, ferme:s.feasible}))
+    } : null
+  };
+}
+function download(name, blob){ const a=document.createElement("a"); a.href=URL.createObjectURL(blob); a.download=name; a.click(); setTimeout(()=>URL.revokeObjectURL(a.href),1000); }
+function fileTag(){ return (currentGeo().name||"brief").replace(/[^\w-]+/g,"_")+"_"+new Date().toISOString().slice(0,10); }
+function exportJSON(){ download("qualification_"+fileTag()+".json", new Blob([JSON.stringify(gatherData(),null,2)],{type:"application/json"})); }
+function importJSON(file){ const r=new FileReader();
+  r.onload=()=>{ try{ const d=JSON.parse(r.result); const f=d.form||d; FORM_FIELDS.forEach(id=>{ if(f[id]!==undefined){ const e=$(id); if(e) e.value=f[id]; } }); saveForm(); syncZoneInfo(); run(); }
+    catch(e){ $("err").textContent="Import JSON invalide : "+e.message; } };
+  r.readAsText(file); }
+function exportPDF(){
+  if(!window.jspdf){ $("err").textContent="Bibliothèque PDF non chargée (réessaie en ligne)."; return; }
+  const d=gatherData(), { jsPDF }=window.jspdf, doc=new jsPDF({unit:"pt",format:"a4"});
+  const L=48, WID=500; let y=52;
+  const chk=h=>{ if(y+(h||0)>800){ doc.addPage(); y=52; } };
+  const H=t=>{ chk(26); doc.setFont("helvetica","bold"); doc.setFontSize(12.5); doc.setTextColor(83,74,183); doc.text(t,L,y); y+=17; };
+  const row=(k,v)=>{ chk(15); doc.setFont("helvetica","normal"); doc.setFontSize(9.5); doc.setTextColor(120,120,120); doc.text(String(k),L,y);
+    doc.setTextColor(30,30,30); doc.text(doc.splitTextToSize(String(v??"—"),WID-160),L+160,y); y+=15; };
+  doc.setFont("helvetica","bold"); doc.setFontSize(18); doc.setTextColor(83,74,183); doc.text("SATCOM — Fiche de qualification",L,y); y+=22;
+  doc.setFont("helvetica","normal"); doc.setFontSize(9); doc.setTextColor(130,130,130); doc.text(d.meta.genere_le+"  ·  outil GetSAT / Thales",L,y); y+=22;
+  H("Contexte client");
+  row("Pays (utilisateur final)", d.client.pays); row("Zone retenue", d.zone.name+" ("+d.zone.lat+", "+d.zone.lon+")  ·  pluie R0.01 "+d.zone.pluie_R001+" mm/h");
+  row("Couverture", d.client.couverture); row("Plateforme", d.client.plateforme+"  ×"+d.client.quantite);
+  row("Mission", d.client.mission); row("Environnement", d.client.environnement); y+=4;
+  H("Liaison demandée");
+  row("Bande", d.liaison.bande_demandee); row("Usage", d.liaison.usage); row("Débit cible", d.liaison.debit_cible_mbps+" Mbps"); row("Contrainte antenne", d.liaison.contrainte_antenne); y+=4;
+  H("Satellite & modem");
+  row("Opérateur", d.satellite.operateur); row("Longitude GEO", d.satellite.longitude_geo||"auto"); row("EIRP / G-T", (d.satellite.eirp_dbw||"générique")+" dBW  /  "+(d.satellite.gt_dbk||"générique")+" dB/K");
+  row("SFD / Back-off", (d.satellite.sfd||"-90")+" dBW/m²  /  "+(d.satellite.back_off_db||"7")+" dB"); row("Bilan de liaison", d.satellite.bilan_fourni); row("Modem", d.satellite.modem); y+=4;
+  H("Estimation");
+  if(d.estimation){ const e=d.estimation;
+    row("Bande retenue", e.bande_retenue); row("Orbite recommandée", e.orbite); row("Élévation GEO", e.elevation_geo);
+    row("Pluie (0,01 %)", e.pluie); row("Antenne minimale", e.antenne_minimale); row("Faisabilité", e.faisabilite); y+=4;
+    chk(14); doc.setFont("helvetica","italic"); doc.setFontSize(9.5); doc.setTextColor(70,70,70);
+    const syn=doc.splitTextToSize(e.synthese,WID); doc.text(syn,L,y); y+=syn.length*12+8;
+    H("Débit utile par antenne (GEO)");
+    e.antennes.forEach(a=> row(a.classe+" (G/T "+a.gt_dbk+")", a.ferme? a.debit_mbps+" Mbps" : "— (ne ferme pas)"));
+  } else { row("Estimation", "cliquer « Estimer » d'abord"); }
+  doc.setFontSize(8); doc.setTextColor(150,150,150); doc.text("Estimation indicative (moteur SATCOM, pluie ITU-R P.618) — à confirmer par un bilan de liaison formel.",L,815);
+  doc.save("qualification_"+fileTag()+".pdf");
+}
+$("expJson").addEventListener("click", exportJSON);
+$("expPdf").addEventListener("click", exportPDF);
+$("impJsonBtn").addEventListener("click", ()=>$("impJson").click());
+$("impJson").addEventListener("change", e=>{ if(e.target.files[0]) importJSON(e.target.files[0]); e.target.value=""; });
+
 restoreForm(); syncZoneInfo(); run();
 </script>
 </body>
