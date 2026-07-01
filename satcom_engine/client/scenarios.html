@@ -37,6 +37,8 @@
   @media(max-width:880px){.grid{grid-template-columns:1fr}}
   .card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px 18px;
         display:flex;flex-direction:column;min-height:300px}
+  .card.qual{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent) inset}
+  .pill.qual{background:var(--accent);color:#fff;border-color:var(--accent)}
   .ttl{display:flex;align-items:baseline;gap:8px;margin:0}
   .num{font-weight:700;color:var(--accent);font-size:13px;border:1.5px solid var(--accent);
        border-radius:6px;padding:0 7px;line-height:1.5}
@@ -77,7 +79,8 @@
   <p class="sub">Quatre services — <b>Syracuse</b> (GEO X), <b>Inmarsat GX</b> (GEO Ka),
   <b>Amazon Leo</b> et <b>Starlink</b> (LEO Ka) — sur quatre cas d'emploi. Débit utile (Mbps) calculé en direct par le
   <i>SATCOM Coverage Engine</i>, <b>élévation</b> et <b>atténuation pluie</b> (ITU-R P.618) intégrées ;
-  une liaison GEO sous le masque local est <span style="color:var(--bad)">indisponible</span>.</p>
+  une liaison GEO sous le masque local est <span style="color:var(--bad)">indisponible</span>.
+  <span id="qualnote"></span></p>
 
   <div class="bar">
     <label>API</label>
@@ -152,6 +155,12 @@ const SCENARIOS = [
           {key:"InmarsatGX",label:"Inmarsat GX · GEO Ka",lon:11,up:30000,down:20000,eirp:60,gt:10,bw:72,gtTerm:9.5,color:"var(--geo)"} ],
     leo:{label:"Amazon Leo · LEO Ka",eirp:38,gt:6,gtTerm:9.5,color:"var(--leo)"} },
 ];
+
+// Scénario « issu de la qualification » (posé par brief.html) — placé en tête s'il existe
+(function(){
+  try{ const q=JSON.parse(localStorage.getItem("satcom_qual_scenario")||"null");
+    if(q && q.sites && q.geo) SCENARIOS.unshift(q); }catch(e){}
+})();
 
 const $ = id => document.getElementById(id);
 const median = a => { if(!a.length) return 0; const s=[...a].sort((x,y)=>x-y); const m=s.length>>1;
@@ -319,10 +328,11 @@ function renderMatrix(data){
 }
 
 function cardShell(sc){
-  return `<div class="card" id="sc${sc.n}">
+  return `<div class="card${sc.qualified?" qual":""}" id="sc${sc.n}">
     <p class="ttl"><span class="num">${sc.n}</span><h2>${sc.title}</h2></p>
     <p class="ctx">${sc.ctx}</p>
     <div class="pills">
+      ${sc.qualified?'<span class="pill qual">Issu de la qualification</span>':""}
       <span class="pill">${sc.sites.map(s=>s.name).join(" → ")}</span>
       <span class="pill">masque ${sc.mask}°</span>
       <span class="pill">pluie R₀.₀₁ ${sc.rain} mm/h</span>
@@ -356,6 +366,9 @@ async function run(){
   renderMatrix(data);
   $("run").disabled=false; $("run").textContent="Recalculer";
 }
+
+if(SCENARIOS[0] && SCENARIOS[0].qualified)
+  $("qualnote").innerHTML = ` Le premier scénario (<b style="color:var(--accent)">Issu de la qualification</b>) reprend le brief client courant.`;
 
 $("run").addEventListener("click", run);
 run();

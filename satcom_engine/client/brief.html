@@ -32,6 +32,9 @@
   button.ghost{background:transparent;border:1px solid var(--accent);color:var(--accent)}
   button:disabled{opacity:.5;cursor:wait}
   .actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:6px}
+  .btnbar{display:flex;gap:14px;flex-wrap:wrap;align-items:stretch;margin-top:8px}
+  .btngrp{display:flex;gap:8px;align-items:center;background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:8px 10px}
+  .btngrp .glbl{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;font-weight:700;align-self:center;margin-right:2px}
   .est h2{font-size:15px;font-weight:600;margin:0 0 4px}
   .syn{font-size:13.5px;line-height:1.5;background:var(--bg);border:1px solid var(--line);border-radius:9px;padding:11px 13px;margin:6px 0 12px}
   .syn b{color:var(--ink)}
@@ -133,11 +136,17 @@
         <label>Modem (optionnel)</label><input id="modem" placeholder="ex. iDirect, Comtech, intégré">
       </fieldset>
 
-      <div class="actions">
-        <button id="run">Estimer</button>
-        <button id="toCov" class="ghost">Ouvrir dans la Couverture 3D →</button>
-        <button id="toScen" class="ghost">Voir les 4 scénarios →</button>
-        <button id="reset" class="ghost" title="Vider le formulaire et l'estimation">Réinitialiser le brief</button>
+      <div class="btnbar">
+        <div class="btngrp">
+          <span class="glbl">Estimation</span>
+          <button id="run">Estimer</button>
+          <button id="reset" class="ghost" title="Vider le formulaire et l'estimation">Réinitialiser</button>
+        </div>
+        <div class="btngrp">
+          <span class="glbl">Explorer</span>
+          <button id="toCov" class="ghost">Couverture 3D →</button>
+          <button id="toScen" class="ghost">Scénarios →</button>
+        </div>
       </div>
       <div class="err" id="err"></div>
     </div>
@@ -350,7 +359,30 @@ $("toCov").addEventListener("click", ()=>{
   if(lastEst){ p.orbit=lastEst.orbit; p.ant=lastEst.ant; p.rain=lastEst.rain; }
   location.href="coverage3d.html?"+new URLSearchParams(p).toString();
 });
-$("toScen").addEventListener("click", ()=>{ saveForm(); location.href="scenarios.html"; });
+// Scénario « issu de la qualification » injecté dans scenarios.html
+function buildQualScenario(){
+  const z=currentGeo(), mask=maskOf(), band=pickBand();
+  const av=+$("antmax").value; const gt = (av>0 && av<=19) ? av : 10.8; // G/T terminal (défaut nano)
+  const satLon = $("satlon").value!=="" ? Math.round(+$("satlon").value) : Math.round(z.lon);
+  return {
+    n:"Q", qualified:true,
+    title:`Qualification — ${z.name}`,
+    ctx:`${$("platform").selectedOptions[0].text} · ${$("mission").selectedOptions[0].text} · bande ${band} · ${$("usage").selectedOptions[0].text} @ ${$("rate").value} Mbps · antenne G/T ${gt}`,
+    rain:z.rain,
+    sites:[{name:z.name,lat:z.lat,lon:z.lon}],
+    mask:mask,
+    geo:[
+      {key:"Syracuse",  label:"Syracuse · GEO X",   lon:satLon, up:8000, down:7500, eirp:52, gt:5,  bw:40, gtTerm:Math.min(gt,7.0), color:"var(--geo2)"},
+      {key:"InmarsatGX",label:"Inmarsat GX · GEO Ka",lon:satLon, up:30000,down:20000,eirp:60, gt:10, bw:72, gtTerm:gt,               color:"var(--geo)"}
+    ],
+    leo:{label:"Amazon Leo · LEO Ka", eirp:38, gt:6, gtTerm:gt, color:"var(--leo)"}
+  };
+}
+$("toScen").addEventListener("click", ()=>{
+  saveForm();
+  try{ localStorage.setItem("satcom_qual_scenario", JSON.stringify(buildQualScenario())); }catch(e){}
+  location.href="scenarios.html";
+});
 $("reset").addEventListener("click", ()=>{ localStorage.removeItem("satcom_brief"); location.href="brief.html"; });
 
 // ---- Export / import de la qualification (réexploitation future) ----
