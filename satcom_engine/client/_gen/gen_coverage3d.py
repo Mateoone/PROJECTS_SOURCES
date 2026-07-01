@@ -233,7 +233,9 @@ const baseLayer = Cesium.ImageryLayer.fromProviderAsync(
 const viewer = new Cesium.Viewer("cesium", {
   baseLayer, baseLayerPicker:false, geocoder:false, homeButton:false, navigationHelpButton:false,
   sceneModePicker:false, fullscreenButton:false, infoBox:false, selectionIndicator:false,
-  animation:false, timeline:false, shouldAnimate:false });
+  animation:false, timeline:false, shouldAnimate:false,
+  contextOptions:{webgl:{preserveDrawingBuffer:true}} });  // preserveDrawingBuffer : capture toDataURL() pour l'export PDF du brief
+window.viewer = viewer;  // exposé pour la capture depuis brief.html (iframe même origine)
 viewer.scene.globe.enableLighting=false;
 viewer.scene.globe.baseColor=Cesium.Color.fromCssColorString("#0a1420");
 viewer.scene.backgroundColor=Cesium.Color.fromCssColorString("#05070d");

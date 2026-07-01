@@ -411,8 +411,138 @@ function importJSON(file){ const r=new FileReader();
   r.onload=()=>{ try{ const d=JSON.parse(r.result); const f=d.form||d; FORM_FIELDS.forEach(id=>{ if(f[id]!==undefined){ const e=$(id); if(e) e.value=f[id]; } }); saveForm(); syncZoneInfo(); run(); }
     catch(e){ $("err").textContent="Import JSON invalide : "+e.message; } };
   r.readAsText(file); }
-function exportPDF(){
+// ---- Résultats « scénario » pour cette mission (même moteur que scenarios.html) ----
+async function postPath(base, path, body){
+  const r=await fetch(base+path,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)});
+  if(!r.ok) throw new Error("HTTP "+r.status); return r.json();
+}
+const _median=a=>{ if(!a.length)return 0; const s=[...a].sort((x,y)=>x-y),m=s.length>>1; return s.length%2?s[m]:(s[m-1]+s[m])/2; };
+async function scEvalGeo(base, sc, g){
+  let feasible=true,elMin=Infinity,rainMax=0,thr=Infinity,blockedAt=null;
+  for(const s of sc.sites){
+    const el=geoElev(s.lat,s.lon,g.lon), rain=rainAtten(sc.rain,g.down/1000,el,s.lat);
+    const d=await postPath(base,"/link",{
+      site:{name:s.name,lat_deg:s.lat,lon_deg:s.lon,elevation_mask_deg:sc.mask},
+      terminal:{name:"term",gt_dbk:g.gtTerm}, carrier:{uplink_mhz:g.up,downlink_mhz:g.down},
+      satellite_geo:{name:g.key,longitude_deg:g.lon,eirp_dbw:g.eirp,gt_dbk:g.gt,transponder_bw_mhz:g.bw,sfd_dbw_m2:-90},
+      rain_margin_db:rain });
+    elMin=Math.min(elMin,el); rainMax=Math.max(rainMax,rain);
+    if(d.throughput_mbps!=null) thr=Math.min(thr,d.throughput_mbps);
+    if(!d.feasible){ feasible=false; if(d.geometry&&!d.geometry.visible) blockedAt=s.name; }
+  }
+  return {kind:"GEO",label:g.label,feasible,el:elMin,rain:rainMax,thr:feasible?thr:0,blockedAt};
+}
+function scLeoConfigs(sc){ return [
+  {label:"Amazon Leo · LEO Ka",gtTerm:sc.leo.gtTerm,walker:{name:"AmazonLeo",altitude_km:610,inclination_deg:51.9,planes:28,sats_per_plane:28,phasing:1,eirp_dbw:38,gt_dbk:6}},
+  {label:"Starlink · LEO Ka",  gtTerm:sc.leo.gtTerm,walker:{name:"Starlink",  altitude_km:550,inclination_deg:53.0,planes:40,sats_per_plane:20,phasing:1,eirp_dbw:36,gt_dbk:5}} ]; }
+async function scEvalLeo(base, sc, cfg){
+  let availMin=100,ho=0,thrs=[],els=[];
+  for(const s of sc.sites){
+    const d=await postPath(base,"/scenario",{
+      site:{name:s.name,lat_deg:s.lat,lon_deg:s.lon,elevation_mask_deg:sc.mask},
+      terminal:{name:"term",gt_dbk:cfg.gtTerm}, tles:[], walker:cfg.walker,
+      epoch_iso:"2026-06-26T12:00:00Z", duration_s:1800, step_s:30, handover_policy:"max_elevation" });
+    availMin=Math.min(availMin,d.availability_pct); ho=Math.max(ho,d.handover_count);
+    thrs.push(...d.series.filter(p=>p.served&&p.throughput_mbps!=null).map(p=>p.throughput_mbps));
+    els.push(...d.series.filter(p=>p.served&&p.elevation_deg!=null).map(p=>p.elevation_deg));
+  }
+  return {kind:"LEO",label:cfg.label,feasible:availMin>0,avail:availMin,ho,thr:availMin>0?_median(thrs):0,elMed:els.length?_median(els):0};
+}
+function scVerdict(rows, sc){
+  const geoOk=rows.filter(r=>r.kind==="GEO"&&r.feasible), leos=rows.filter(r=>r.kind==="LEO");
+  const leo=leos.reduce((a,b)=>(b.thr>a.thr?b:a),leos[0]);
+  if(geoOk.length===0) return {level:"LEO seul", txt:`GEO indisponible (masque ${sc.mask}° au-dessus de l'élévation). Seul ${leo.label.split(" ·")[0]} assure le service (${leo.avail.toFixed(0)} %, ${leo.ho} handovers).`};
+  const best=geoOk.reduce((a,b)=>b.thr>a.thr?b:a);
+  const partial=geoOk.length!==rows.filter(r=>r.kind==="GEO").length;
+  return {level:partial?"Partiel":"OK", txt:`Couverture de bout en bout. Primaire ${best.label.split(" ·")[0]} (${best.thr.toFixed(1)} Mbps, él ≥ ${best.el.toFixed(0)}°, pluie ${best.rain.toFixed(1)} dB)`+(leo&&leo.feasible?`, ${leo.label.split(" ·")[0]} en secours (${leo.avail.toFixed(0)} %).`:`.`)};
+}
+async function evalQualScenario(base){
+  const sc=buildQualScenario();
+  const geoRows=[]; for(const g of sc.geo) geoRows.push(await scEvalGeo(base,sc,g));
+  const leoRows=[]; for(const cfg of scLeoConfigs(sc)) leoRows.push(await scEvalLeo(base,sc,cfg));
+  return {sc, geoRows, leoRows, verdict:scVerdict([...geoRows,...leoRows],sc)};
+}
+
+// ---- Capture d'une vue de la Couverture 3D (iframe même origine → toDataURL) ----
+function captureCoverage(){
+  return new Promise(resolve=>{
+    const z=currentGeo(), mask=maskOf();
+    const p={ name:z.name, lat:z.lat, lon:z.lon, mask, gt:lastCtx?lastCtx.gt:10.8, band:pickBand(),
+      usage:$("usage").selectedOptions[0].text, rate:$("rate").value,
+      mission:$("mission").selectedOptions[0].text, platform:$("platform").selectedOptions[0].text };
+    if(lastEst){ p.orbit=lastEst.orbit; p.ant=lastEst.ant; p.rain=lastEst.rain; }
+    const iframe=document.createElement("iframe");
+    iframe.style.cssText="position:fixed;left:-10000px;top:0;width:960px;height:640px;border:0";
+    let done=false;
+    const finish=img=>{ if(done)return; done=true; clearTimeout(hard); try{iframe.remove();}catch(e){} resolve(img); };
+    const hard=setTimeout(()=>finish(null), 12000);
+    iframe.onload=()=>{
+      const w=iframe.contentWindow;
+      const wait=()=>{
+        const v=w&&w.viewer; if(!v) return setTimeout(wait,300);
+        const grab=()=>{ try{ v.scene.render();
+          const url=v.scene.canvas.toDataURL("image/jpeg",0.85); finish(url&&url.length>3000?url:null); }
+          catch(e){ finish(null); } };
+        let stable=0;
+        try{ v.scene.globe.tileLoadProgressEvent.addEventListener(q=>{
+          if(q===0){ if(++stable>=3) requestAnimationFrame(grab); } else stable=0; }); }catch(e){}
+        setTimeout(grab, 5000); // filet si l'événement ne retombe jamais à 0
+      };
+      wait();
+    };
+    iframe.src="coverage3d.html?"+new URLSearchParams(p).toString();
+    document.body.appendChild(iframe);
+  });
+}
+// Repli : globe orthographique schématique si la capture Cesium échoue
+function coverageSchematic(){
+  const z=currentGeo(); const satLon=$("satlon").value!==""?+$("satlon").value:z.lon;
+  const W=960,H=640,c=document.createElement("canvas"); c.width=W;c.height=H; const x=c.getContext("2d");
+  x.fillStyle="#05070d"; x.fillRect(0,0,W,H);
+  const cx=W/2,cy=H/2,R=Math.min(W,H)*0.42, D=Math.PI/180, lat0=z.lat*D, lon0=z.lon*D;
+  const proj=(la,lo)=>{ la*=D; lo*=D; const cc=Math.sin(lat0)*Math.sin(la)+Math.cos(lat0)*Math.cos(la)*Math.cos(lo-lon0);
+    return {vis:cc>=0, X:cx+R*Math.cos(la)*Math.sin(lo-lon0), Y:cy-R*(Math.cos(lat0)*Math.sin(la)-Math.sin(lat0)*Math.cos(la)*Math.cos(lo-lon0))}; };
+  const g=x.createRadialGradient(cx-R*0.3,cy-R*0.35,R*0.15,cx,cy,R);
+  g.addColorStop(0,"#16304a"); g.addColorStop(1,"#0a1420");
+  x.fillStyle=g; x.beginPath(); x.arc(cx,cy,R,0,7); x.fill();
+  x.save(); x.beginPath(); x.arc(cx,cy,R,0,7); x.clip();
+  // graticule
+  x.strokeStyle="rgba(120,160,200,.22)"; x.lineWidth=1;
+  for(let lo=-180;lo<180;lo+=30){ x.beginPath(); let started=false;
+    for(let la=-90;la<=90;la+=3){ const q=proj(la,lo); if(!q.vis){started=false;continue;}
+      if(!started){x.moveTo(q.X,q.Y);started=true;} else x.lineTo(q.X,q.Y);} x.stroke(); }
+  for(let la=-60;la<=60;la+=30){ x.beginPath(); let started=false;
+    for(let lo=-180;lo<=180;lo+=3){ const q=proj(la,lo); if(!q.vis){started=false;continue;}
+      if(!started){x.moveTo(q.X,q.Y);started=true;} else x.lineTo(q.X,q.Y);} x.stroke(); }
+  // empreinte GEO (calotte visible depuis le satellite sous-satellite lon=satLon, lat=0), rayon ~81°
+  x.fillStyle="rgba(175,169,236,.20)"; x.strokeStyle="rgba(175,169,236,.7)"; x.lineWidth=1.5;
+  x.beginPath(); let s2=false;
+  for(let a=0;a<=360;a+=4){ const ar=81.3*D, br=a*D;
+    const la=Math.asin(Math.sin(0)*Math.cos(ar)+Math.cos(0)*Math.sin(ar)*Math.cos(br))/D;
+    const lo=(satLon+Math.atan2(Math.sin(br)*Math.sin(ar)*Math.cos(0),Math.cos(ar)-Math.sin(0)*Math.sin(la*D))/D);
+    const q=proj(la,lo); if(!q.vis){s2=false;continue;} if(!s2){x.moveTo(q.X,q.Y);s2=true;}else x.lineTo(q.X,q.Y); }
+  x.stroke();
+  x.restore();
+  // limbe
+  x.strokeStyle="rgba(140,180,220,.5)"; x.lineWidth=1.5; x.beginPath(); x.arc(cx,cy,R,0,7); x.stroke();
+  // marqueur site
+  const ps=proj(z.lat,z.lon);
+  x.fillStyle="#5dcaa5"; x.beginPath(); x.arc(ps.X,ps.Y,6,0,7); x.fill();
+  x.strokeStyle="#fff"; x.lineWidth=2; x.beginPath(); x.arc(ps.X,ps.Y,6,0,7); x.stroke();
+  x.fillStyle="#e8e6dd"; x.font="600 18px system-ui,sans-serif"; x.fillText(z.name, ps.X+12, ps.Y+5);
+  x.fillStyle="rgba(232,230,221,.75)"; x.font="13px system-ui,sans-serif";
+  x.fillText("Empreinte GEO (calotte visible) · schéma", 20, H-20);
+  return c.toDataURL("image/jpeg",0.85);
+}
+
+async function exportPDF(){
   if(!window.jspdf){ $("err").textContent="Bibliothèque PDF non chargée (réessaie en ligne)."; return; }
+  const btn=$("expPdf"), oldTxt=btn.textContent; btn.disabled=true; btn.textContent="Génération…"; $("err").textContent="";
+  let coverImg=null, scen=null;
+  try{ [coverImg, scen] = await Promise.all([
+    captureCoverage().catch(()=>null),
+    evalQualScenario(API_DEFAULT).catch(()=>null) ]); }catch(e){}
+  if(!coverImg){ try{ coverImg=coverageSchematic(); }catch(e){} }
   const d=gatherData(), { jsPDF }=window.jspdf, doc=new jsPDF({unit:"pt",format:"a4"});
   const L=48, WID=500; let y=52;
   const chk=h=>{ if(y+(h||0)>800){ doc.addPage(); y=52; } };
@@ -439,8 +569,36 @@ function exportPDF(){
     H("Débit utile par antenne (GEO)");
     e.antennes.forEach(a=> row(a.classe+" (G/T "+a.gt_dbk+")", a.ferme? a.debit_mbps+" Mbps" : "— (ne ferme pas)"));
   } else { row("Estimation", "cliquer « Estimer » d'abord"); }
+  y+=6;
+  // ---- Résultats scénario (moteur, page « scénarios ») pour cette mission ----
+  H("Résultats scénario — cette mission");
+  if(scen){
+    doc.setFontSize(9.5); doc.setFont("helvetica","bold"); doc.setTextColor(120,120,120);
+    chk(14); doc.text("GEO",L,y); y+=14; doc.setFont("helvetica","normal");
+    scen.geoRows.forEach(r=> row("  "+r.label, r.feasible
+      ? `${r.thr.toFixed(1)} Mbps · él ≥ ${r.el.toFixed(0)}° · pluie ${r.rain.toFixed(1)} dB`
+      : `indisponible${r.blockedAt?" ("+r.blockedAt+")":""} · él ${isFinite(r.el)?r.el.toFixed(0):"—"}°`));
+    doc.setFont("helvetica","bold"); doc.setTextColor(120,120,120); chk(14); doc.text("LEO",L,y); y+=14; doc.setFont("helvetica","normal");
+    scen.leoRows.forEach(r=> row("  "+r.label, r.feasible
+      ? `${r.thr.toFixed(1)} Mbps · dispo ${r.avail.toFixed(0)} % · ${r.ho} handovers · él~${r.elMed.toFixed(0)}°`
+      : `indisponible`));
+    y+=4; chk(30); doc.setFont("helvetica","bold"); doc.setFontSize(10); doc.setTextColor(83,74,183);
+    doc.text("Verdict : "+scen.verdict.level, L, y); y+=14;
+    doc.setFont("helvetica","normal"); doc.setFontSize(9.5); doc.setTextColor(70,70,70);
+    const vt=doc.splitTextToSize(scen.verdict.txt, WID); doc.text(vt,L,y); y+=vt.length*12+4;
+  } else { row("Scénario", "moteur indisponible (vérifier la connexion à l'API)"); }
+  // ---- Vue de la Couverture 3D ----
+  if(coverImg){
+    doc.addPage(); y=52; H("Couverture 3D — vue de la mission");
+    const iw=WID, ih=Math.round(iw*640/960);
+    try{ doc.addImage(coverImg,"JPEG",L,y,iw,ih); y+=ih+8;
+      doc.setFont("helvetica","italic"); doc.setFontSize(8.5); doc.setTextColor(140,140,140);
+      doc.text("Globe SATCOM centré sur la zone qualifiée — couvertures GEO/LEO du moteur (CesiumJS).",L,y);
+    }catch(e){}
+  }
   doc.setFontSize(8); doc.setTextColor(150,150,150); doc.text("Estimation indicative (moteur SATCOM, pluie ITU-R P.618) — à confirmer par un bilan de liaison formel.",L,815);
   doc.save("qualification_"+fileTag()+".pdf");
+  btn.disabled=false; btn.textContent=oldTxt;
 }
 $("expJson").addEventListener("click", exportJSON);
 $("expPdf").addEventListener("click", exportPDF);
