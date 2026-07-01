@@ -55,7 +55,7 @@
 </head>
 <body>
 <div class="wrap">
-  <nav class="topnav"><a href="brief.html" class="on">Qualification</a><a href="coverage3d.html">Couverture 3D</a><a href="scenarios.html">4 scénarios</a></nav>
+  <nav class="topnav"><a href="brief.html" class="on">Qualification</a><a href="coverage3d.html">Couverture 3D</a><a href="scenarios.html">Scénarios</a></nav>
   <h1>Qualification client &amp; estimation rapide</h1>
   <p class="sub">Saisis les réponses aux questions clés ; l'outil propose une <b>bande</b>, une <b>orbite</b>, une <b>classe d'antenne</b>
   et un <b>bilan de liaison</b> indicatif (moteur SATCOM), puis pousse la géographie vers la Couverture 3D.</p>
@@ -454,7 +454,7 @@ function scVerdict(rows, sc){
   if(geoOk.length===0) return {level:"LEO seul", txt:`GEO indisponible (masque ${sc.mask}° au-dessus de l'élévation). Seul ${leo.label.split(" ·")[0]} assure le service (${leo.avail.toFixed(0)} %, ${leo.ho} handovers).`};
   const best=geoOk.reduce((a,b)=>b.thr>a.thr?b:a);
   const partial=geoOk.length!==rows.filter(r=>r.kind==="GEO").length;
-  return {level:partial?"Partiel":"OK", txt:`Couverture de bout en bout. Primaire ${best.label.split(" ·")[0]} (${best.thr.toFixed(1)} Mbps, él ≥ ${best.el.toFixed(0)}°, pluie ${best.rain.toFixed(1)} dB)`+(leo&&leo.feasible?`, ${leo.label.split(" ·")[0]} en secours (${leo.avail.toFixed(0)} %).`:`.`)};
+  return {level:partial?"Partiel":"OK", txt:`Couverture de bout en bout. Primaire ${best.label.split(" ·")[0]} (${best.thr.toFixed(1)} Mbps, él >= ${best.el.toFixed(0)}°, pluie ${best.rain.toFixed(1)} dB)`+(leo&&leo.feasible?`, ${leo.label.split(" ·")[0]} en secours (${leo.avail.toFixed(0)} %).`:`.`)};
 }
 async function evalQualScenario(base){
   const sc=buildQualScenario();
@@ -472,21 +472,24 @@ function captureCoverage(){
       mission:$("mission").selectedOptions[0].text, platform:$("platform").selectedOptions[0].text };
     if(lastEst){ p.orbit=lastEst.orbit; p.ant=lastEst.ant; p.rain=lastEst.rain; }
     const iframe=document.createElement("iframe");
+    // 960×640 (cadrage validé) rendu en supersampling ×2 → capture nette pour le PDF
     iframe.style.cssText="position:fixed;left:-10000px;top:0;width:960px;height:640px;border:0";
     let done=false;
-    const finish=img=>{ if(done)return; done=true; clearTimeout(hard); try{iframe.remove();}catch(e){} resolve(img); };
-    const hard=setTimeout(()=>finish(null), 12000);
+    const finish=r=>{ if(done)return; done=true; clearTimeout(hard); try{iframe.remove();}catch(e){} resolve(r); };
+    const hard=setTimeout(()=>finish(null), 14000);
     iframe.onload=()=>{
       const w=iframe.contentWindow;
       const wait=()=>{
         const v=w&&w.viewer; if(!v) return setTimeout(wait,300);
-        const grab=()=>{ try{ v.scene.render();
-          const url=v.scene.canvas.toDataURL("image/jpeg",0.85); finish(url&&url.length>3000?url:null); }
+        try{ v.useBrowserRecommendedResolution=false; v.resolutionScale=2; }catch(e){}
+        const grab=()=>{ try{ v.scene.render(); v.scene.render();
+          const cv=v.scene.canvas, url=cv.toDataURL("image/jpeg",0.92);
+          finish(url&&url.length>3000?{img:url, ar:cv.height/cv.width}:null); }
           catch(e){ finish(null); } };
         let stable=0;
         try{ v.scene.globe.tileLoadProgressEvent.addEventListener(q=>{
           if(q===0){ if(++stable>=3) requestAnimationFrame(grab); } else stable=0; }); }catch(e){}
-        setTimeout(grab, 5000); // filet si l'événement ne retombe jamais à 0
+        setTimeout(grab, 5500); // filet si l'événement ne retombe jamais à 0
       };
       wait();
     };
@@ -497,7 +500,7 @@ function captureCoverage(){
 // Repli : globe orthographique schématique si la capture Cesium échoue
 function coverageSchematic(){
   const z=currentGeo(); const satLon=$("satlon").value!==""?+$("satlon").value:z.lon;
-  const W=960,H=640,c=document.createElement("canvas"); c.width=W;c.height=H; const x=c.getContext("2d");
+  const W=1440,H=960,c=document.createElement("canvas"); c.width=W;c.height=H; const x=c.getContext("2d");
   x.fillStyle="#05070d"; x.fillRect(0,0,W,H);
   const cx=W/2,cy=H/2,R=Math.min(W,H)*0.42, D=Math.PI/180, lat0=z.lat*D, lon0=z.lon*D;
   const proj=(la,lo)=>{ la*=D; lo*=D; const cc=Math.sin(lat0)*Math.sin(la)+Math.cos(lat0)*Math.cos(la)*Math.cos(lo-lon0);
@@ -527,12 +530,12 @@ function coverageSchematic(){
   x.strokeStyle="rgba(140,180,220,.5)"; x.lineWidth=1.5; x.beginPath(); x.arc(cx,cy,R,0,7); x.stroke();
   // marqueur site
   const ps=proj(z.lat,z.lon);
-  x.fillStyle="#5dcaa5"; x.beginPath(); x.arc(ps.X,ps.Y,6,0,7); x.fill();
-  x.strokeStyle="#fff"; x.lineWidth=2; x.beginPath(); x.arc(ps.X,ps.Y,6,0,7); x.stroke();
-  x.fillStyle="#e8e6dd"; x.font="600 18px system-ui,sans-serif"; x.fillText(z.name, ps.X+12, ps.Y+5);
-  x.fillStyle="rgba(232,230,221,.75)"; x.font="13px system-ui,sans-serif";
-  x.fillText("Empreinte GEO (calotte visible) · schéma", 20, H-20);
-  return c.toDataURL("image/jpeg",0.85);
+  x.fillStyle="#5dcaa5"; x.beginPath(); x.arc(ps.X,ps.Y,9,0,7); x.fill();
+  x.strokeStyle="#fff"; x.lineWidth=3; x.beginPath(); x.arc(ps.X,ps.Y,9,0,7); x.stroke();
+  x.fillStyle="#e8e6dd"; x.font="600 27px system-ui,sans-serif"; x.fillText(z.name, ps.X+16, ps.Y+8);
+  x.fillStyle="rgba(232,230,221,.75)"; x.font="19px system-ui,sans-serif";
+  x.fillText("Empreinte GEO (calotte visible) · schéma", 28, H-28);
+  return {img:c.toDataURL("image/jpeg",0.9), ar:H/W};
 }
 
 async function exportPDF(){
@@ -573,25 +576,39 @@ async function exportPDF(){
   // ---- Résultats scénario (moteur, page « scénarios ») pour cette mission ----
   H("Résultats scénario — cette mission");
   if(scen){
-    doc.setFontSize(9.5); doc.setFont("helvetica","bold"); doc.setTextColor(120,120,120);
-    chk(14); doc.text("GEO",L,y); y+=14; doc.setFont("helvetica","normal");
-    scen.geoRows.forEach(r=> row("  "+r.label, r.feasible
-      ? `${r.thr.toFixed(1)} Mbps · él ≥ ${r.el.toFixed(0)}° · pluie ${r.rain.toFixed(1)} dB`
-      : `indisponible${r.blockedAt?" ("+r.blockedAt+")":""} · él ${isFinite(r.el)?r.el.toFixed(0):"—"}°`));
-    doc.setFont("helvetica","bold"); doc.setTextColor(120,120,120); chk(14); doc.text("LEO",L,y); y+=14; doc.setFont("helvetica","normal");
-    scen.leoRows.forEach(r=> row("  "+r.label, r.feasible
-      ? `${r.thr.toFixed(1)} Mbps · dispo ${r.avail.toFixed(0)} % · ${r.ho} handovers · él~${r.elMed.toFixed(0)}°`
-      : `indisponible`));
-    y+=4; chk(30); doc.setFont("helvetica","bold"); doc.setFontSize(10); doc.setTextColor(83,74,183);
+    doc.setFont("helvetica","normal"); doc.setFontSize(8.5); doc.setTextColor(120,120,120);
+    doc.text("Débit utile par service (barres, échelle 0–12 Mbps) — mêmes calculs que la page Scénarios.",L,y); y+=13;
+    const rows=[...scen.geoRows.map(r=>({...r,kind:"GEO"})), ...scen.leoRows.map(r=>({...r,kind:"LEO"}))];
+    const THR=12, lblW=152, bx=L+lblW, bw=WID-lblW-72;
+    rows.forEach(r=>{
+      chk(26);
+      const col = r.kind==="GEO" ? [83,74,183] : [29,158,117];
+      doc.setFont("helvetica","bold"); doc.setFontSize(9); doc.setTextColor(35,35,31);
+      doc.text(doc.splitTextToSize(r.label, lblW-6), L, y+3);
+      doc.setFont("helvetica","normal"); doc.setFontSize(7.5); doc.setTextColor(120,120,120);
+      const note = r.kind==="GEO"
+        ? (r.feasible?`él >= ${r.el.toFixed(0)}° · pluie ${r.rain.toFixed(1)} dB`:`masqué${r.blockedAt?" ("+r.blockedAt+")":""}`)
+        : (r.feasible?`dispo ${r.avail.toFixed(0)} % · ${r.ho} HO · él~${r.elMed.toFixed(0)}°`:`hors service`);
+      doc.text(note, L, y+12);
+      doc.setFillColor(236,234,228); doc.roundedRect(bx, y-4, bw, 12, 3, 3, "F");
+      if(r.feasible){ const w=Math.max(2, Math.min(1, r.thr/THR)*bw);
+        doc.setFillColor(col[0],col[1],col[2]); doc.roundedRect(bx, y-4, w, 12, 3, 3, "F");
+        doc.setFont("helvetica","bold"); doc.setFontSize(8.5); doc.setTextColor(35,35,31);
+        doc.text(r.thr.toFixed(1)+" Mbps", bx+w+5, y+5); }
+      else { doc.setFont("helvetica","bold"); doc.setFontSize(8); doc.setTextColor(216,90,48);
+        doc.text("indisponible", bx+5, y+5); }
+      y+=22;
+    });
+    y+=2; chk(30); doc.setFont("helvetica","bold"); doc.setFontSize(10); doc.setTextColor(83,74,183);
     doc.text("Verdict : "+scen.verdict.level, L, y); y+=14;
     doc.setFont("helvetica","normal"); doc.setFontSize(9.5); doc.setTextColor(70,70,70);
     const vt=doc.splitTextToSize(scen.verdict.txt, WID); doc.text(vt,L,y); y+=vt.length*12+4;
   } else { row("Scénario", "moteur indisponible (vérifier la connexion à l'API)"); }
   // ---- Vue de la Couverture 3D ----
-  if(coverImg){
+  if(coverImg&&coverImg.img){
     doc.addPage(); y=52; H("Couverture 3D — vue de la mission");
-    const iw=WID, ih=Math.round(iw*640/960);
-    try{ doc.addImage(coverImg,"JPEG",L,y,iw,ih); y+=ih+8;
+    const iw=WID, ih=Math.round(iw*(coverImg.ar||(2/3)));
+    try{ doc.addImage(coverImg.img,"JPEG",L,y,iw,ih); y+=ih+8;
       doc.setFont("helvetica","italic"); doc.setFontSize(8.5); doc.setTextColor(140,140,140);
       doc.text("Globe SATCOM centré sur la zone qualifiée — couvertures GEO/LEO du moteur (CesiumJS).",L,y);
     }catch(e){}
