@@ -2,10 +2,28 @@
   "version": "0.0.1",
   "configurations": [
     {
+      "name": "space-apps-portal",
+      "runtimeExecutable": "python3",
+      "runtimeArgs": ["-m", "http.server", "8790", "--directory", "space-apps-portal"],
+      "port": 8790
+    },
+    {
       "name": "digitalxp-backoffice",
       "runtimeExecutable": "python3",
       "runtimeArgs": ["-m", "http.server", "8777", "--directory", "digitalxp-backoffice"],
       "port": 8777
+    },
+    {
+      "name": "sketchfab-experiments",
+      "runtimeExecutable": "python3",
+      "runtimeArgs": ["-m", "http.server", "8766", "--directory", "sketchfab-experiments"],
+      "port": 8766
+    },
+    {
+      "name": "sketchfab-node",
+      "runtimeExecutable": "node",
+      "runtimeArgs": ["sketchfab-experiments/server.js"],
+      "port": 8080
     },
     {
       "name": "sketchfab-viewer",

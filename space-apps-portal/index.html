@@ -1,0 +1,605 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Space Apps — Portail des applications spatiales</title>
+<meta name="description" content="Portail des applications spatiales : Panopticon, SatConfig et SATcom Coverage Engine." />
+<style>
+  :root {
+    --glass-bg: rgba(255, 255, 255, 0.06);
+    --glass-border: rgba(255, 255, 255, 0.14);
+    --glass-highlight: rgba(255, 255, 255, 0.28);
+    --text: #f4f7fb;
+    --text-dim: rgba(230, 238, 248, 0.72);
+    --accent-1: #6ec3ff;
+    --accent-2: #8f7bff;
+    --accent-3: #52e0c4;
+    --radius-xl: 28px;
+    --radius-lg: 20px;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  html {
+    scroll-behavior: smooth;
+  }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", Inter, Roboto, sans-serif;
+    color: var(--text);
+    background: #02040a;
+    overflow-x: hidden;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* ---------- Fond Terre (NASA) ---------- */
+  .bg {
+    position: fixed;
+    inset: 0;
+    z-index: -2;
+    background:
+      url("https://images-assets.nasa.gov/image/iss074e0784492/iss074e0784492~large.jpg")
+      center / cover no-repeat;
+    transform: scale(1.08);
+    will-change: transform;
+  }
+  .bg::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background:
+      radial-gradient(120% 90% at 50% 0%, rgba(2, 6, 18, 0.25) 0%, rgba(2, 6, 18, 0.55) 55%, rgba(2, 4, 10, 0.9) 100%),
+      linear-gradient(180deg, rgba(2, 6, 18, 0.35), rgba(2, 4, 10, 0.65));
+  }
+
+  /* étoiles scintillantes discrètes */
+  .stars {
+    position: fixed;
+    inset: 0;
+    z-index: -1;
+    pointer-events: none;
+  }
+  .stars span {
+    position: absolute;
+    width: 2px; height: 2px;
+    border-radius: 50%;
+    background: #fff;
+    opacity: 0;
+    animation: twinkle 4s ease-in-out infinite;
+  }
+  @keyframes twinkle {
+    0%, 100% { opacity: 0; }
+    50% { opacity: 0.7; }
+  }
+
+  /* ---------- Nav ---------- */
+  nav {
+    position: fixed;
+    top: 18px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 100;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 10px;
+    border-radius: 999px;
+    background: rgba(10, 16, 30, 0.45);
+    border: 1px solid var(--glass-border);
+    backdrop-filter: blur(22px) saturate(160%);
+    -webkit-backdrop-filter: blur(22px) saturate(160%);
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.35);
+  }
+  nav .brand {
+    font-weight: 700;
+    font-size: 0.85rem;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    padding: 6px 14px;
+    background: linear-gradient(90deg, var(--accent-1), var(--accent-2));
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+  nav a {
+    color: var(--text-dim);
+    text-decoration: none;
+    font-size: 0.85rem;
+    font-weight: 500;
+    padding: 7px 14px;
+    border-radius: 999px;
+    transition: all 0.25s ease;
+  }
+  nav a:hover {
+    color: var(--text);
+    background: rgba(255, 255, 255, 0.1);
+  }
+
+  /* ---------- Hero ---------- */
+  header.hero {
+    min-height: 100svh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    padding: 24px;
+    position: relative;
+  }
+  .hero .eyebrow {
+    font-size: 0.8rem;
+    font-weight: 600;
+    letter-spacing: 0.35em;
+    text-transform: uppercase;
+    color: var(--accent-1);
+    margin-bottom: 22px;
+    opacity: 0;
+    animation: rise 1.1s cubic-bezier(0.16, 1, 0.3, 1) 0.2s forwards;
+  }
+  .hero h1 {
+    font-size: clamp(2.6rem, 7vw, 5.4rem);
+    font-weight: 800;
+    line-height: 1.05;
+    letter-spacing: -0.03em;
+    max-width: 15ch;
+    background: linear-gradient(180deg, #ffffff 30%, rgba(255, 255, 255, 0.55));
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    opacity: 0;
+    animation: rise 1.1s cubic-bezier(0.16, 1, 0.3, 1) 0.35s forwards;
+  }
+  .hero p {
+    margin-top: 26px;
+    font-size: clamp(1rem, 2vw, 1.25rem);
+    color: var(--text-dim);
+    max-width: 52ch;
+    line-height: 1.6;
+    opacity: 0;
+    animation: rise 1.1s cubic-bezier(0.16, 1, 0.3, 1) 0.5s forwards;
+  }
+  @keyframes rise {
+    from { opacity: 0; transform: translateY(34px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  .scroll-hint {
+    position: absolute;
+    bottom: 34px;
+    left: 50%;
+    transform: translateX(-50%);
+    color: var(--text-dim);
+    font-size: 0.75rem;
+    letter-spacing: 0.25em;
+    text-transform: uppercase;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+    opacity: 0;
+    animation: rise 1.1s ease 1s forwards;
+  }
+  .scroll-hint .mouse {
+    width: 24px; height: 40px;
+    border: 1.5px solid var(--text-dim);
+    border-radius: 14px;
+    position: relative;
+  }
+  .scroll-hint .mouse::after {
+    content: "";
+    position: absolute;
+    top: 7px; left: 50%;
+    width: 3px; height: 7px;
+    margin-left: -1.5px;
+    border-radius: 3px;
+    background: var(--text);
+    animation: wheel 1.8s ease-in-out infinite;
+  }
+  @keyframes wheel {
+    0% { transform: translateY(0); opacity: 1; }
+    70% { transform: translateY(12px); opacity: 0; }
+    100% { transform: translateY(0); opacity: 0; }
+  }
+
+  /* ---------- Sections apps (style keynote Apple) ---------- */
+  section.app {
+    min-height: 100svh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 110px 24px;
+  }
+
+  .card {
+    width: min(1080px, 100%);
+    display: grid;
+    grid-template-columns: 1.15fr 1fr;
+    gap: 0;
+    border-radius: var(--radius-xl);
+    background: var(--glass-bg);
+    border: 1px solid var(--glass-border);
+    backdrop-filter: blur(26px) saturate(170%);
+    -webkit-backdrop-filter: blur(26px) saturate(170%);
+    box-shadow:
+      0 30px 80px rgba(0, 0, 0, 0.45),
+      inset 0 1px 0 var(--glass-highlight);
+    overflow: hidden;
+    opacity: 0;
+    transform: translateY(70px) scale(0.96);
+    transition: opacity 0.9s cubic-bezier(0.16, 1, 0.3, 1),
+                transform 0.9s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  .card.visible {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+  section.app:nth-of-type(even) .card {
+    grid-template-columns: 1fr 1.15fr;
+  }
+  section.app:nth-of-type(even) .media { order: 2; }
+  section.app:nth-of-type(even) .content { order: 1; }
+
+  /* ----- Média (vignette + vidéo au survol) ----- */
+  .media {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    min-height: 400px;
+    overflow: hidden;
+    cursor: pointer;
+    background: #060a14;
+  }
+  .media img.thumb {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    transition: transform 0.8s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.4s ease;
+  }
+  .media:hover img.thumb { transform: scale(1.06); }
+  .media.playing img.thumb { opacity: 0; }
+  .media iframe {
+    position: absolute;
+    /* surdimensionné pour masquer les bandeaux YouTube */
+    top: 50%; left: 50%;
+    width: 140%; height: 140%;
+    transform: translate(-50%, -50%);
+    border: 0;
+    pointer-events: none;
+  }
+  .media .play-badge {
+    position: absolute;
+    left: 18px; bottom: 16px;
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    padding: 8px 16px;
+    border-radius: 999px;
+    font-size: 0.78rem;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    color: var(--text);
+    background: rgba(8, 12, 24, 0.55);
+    border: 1px solid var(--glass-border);
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
+    transition: opacity 0.3s ease;
+    z-index: 2;
+  }
+  .media .play-badge svg { width: 12px; height: 12px; fill: var(--accent-1); }
+  .media.playing .play-badge .label-idle { display: none; }
+  .media .play-badge .label-live { display: none; }
+  .media.playing .play-badge .label-live {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .media .live-dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    background: #ff5d5d;
+    animation: pulse 1.2s ease-in-out infinite;
+  }
+  @keyframes pulse {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.4; transform: scale(0.8); }
+  }
+  /* barre de progression des 10 s */
+  .media .progress {
+    position: absolute;
+    left: 0; bottom: 0;
+    height: 3px;
+    width: 100%;
+    transform-origin: left;
+    transform: scaleX(0);
+    background: linear-gradient(90deg, var(--accent-1), var(--accent-2));
+    z-index: 2;
+  }
+  .media.playing .progress {
+    animation: progress10 10s linear forwards;
+  }
+  @keyframes progress10 {
+    from { transform: scaleX(0); }
+    to { transform: scaleX(1); }
+  }
+
+  /* ----- Contenu ----- */
+  .content {
+    padding: clamp(28px, 4vw, 52px);
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: 18px;
+  }
+  .content .num {
+    font-size: 0.78rem;
+    font-weight: 700;
+    letter-spacing: 0.3em;
+    text-transform: uppercase;
+    color: var(--text-dim);
+  }
+  .content h2 {
+    font-size: clamp(1.7rem, 3.4vw, 2.5rem);
+    font-weight: 800;
+    letter-spacing: -0.02em;
+    line-height: 1.1;
+  }
+  .content h2 .grad-1 { background-image: linear-gradient(90deg, var(--accent-1), var(--accent-2)); }
+  .content h2 .grad-2 { background-image: linear-gradient(90deg, var(--accent-3), var(--accent-1)); }
+  .content h2 .grad-3 { background-image: linear-gradient(90deg, var(--accent-2), #ff8fb8); }
+  .content h2 span {
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+  .content .tagline {
+    font-size: 1.02rem;
+    font-weight: 600;
+    color: var(--text);
+  }
+  .content p.desc {
+    font-size: 0.95rem;
+    line-height: 1.7;
+    color: var(--text-dim);
+  }
+  .chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 4px;
+  }
+  .chips span {
+    font-size: 0.74rem;
+    font-weight: 600;
+    padding: 6px 12px;
+    border-radius: 999px;
+    color: var(--text-dim);
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid var(--glass-border);
+  }
+
+  /* ---------- Footer ---------- */
+  footer {
+    text-align: center;
+    padding: 60px 24px 46px;
+    color: var(--text-dim);
+    font-size: 0.82rem;
+  }
+  footer .sep {
+    width: 60px; height: 1px;
+    margin: 0 auto 24px;
+    background: linear-gradient(90deg, transparent, var(--glass-border), transparent);
+  }
+
+  /* ---------- Responsive ---------- */
+  @media (max-width: 860px) {
+    .card,
+    section.app:nth-of-type(even) .card {
+      grid-template-columns: 1fr;
+    }
+    section.app:nth-of-type(even) .media { order: 1; }
+    section.app:nth-of-type(even) .content { order: 2; }
+    .media { height: auto; aspect-ratio: 16 / 9; min-height: 0; }
+    nav a { display: none; }
+    nav a.always { display: block; }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    html { scroll-behavior: auto; }
+    .card { transition: none; opacity: 1; transform: none; }
+    .hero .eyebrow, .hero h1, .hero p, .scroll-hint { animation: none; opacity: 1; }
+  }
+</style>
+</head>
+<body>
+
+<div class="bg" id="bg"></div>
+<div class="stars" id="stars"></div>
+
+<nav>
+  <span class="brand">Space Apps</span>
+  <a href="#panopticon">Panopticon</a>
+  <a href="#satconfig">SatConfig</a>
+  <a href="#satcom">SATcom Engine</a>
+</nav>
+
+<header class="hero">
+  <div class="eyebrow">Portail des applications spatiales</div>
+  <h1>L'espace, à portée de main.</h1>
+  <p>Trois applications, une même ambition&nbsp;: observer la Terre, planifier les constellations et connecter le monde depuis l'orbite. Survolez une tuile pour voir chaque application en action.</p>
+  <div class="scroll-hint">
+    <div class="mouse"></div>
+    Défiler
+  </div>
+</header>
+
+<!-- ===================== PANOPTICON ===================== -->
+<section class="app" id="panopticon">
+  <div class="card">
+    <div class="media" data-video="QMK-hacgwDc" tabindex="0" role="button" aria-label="Aperçu vidéo de Panopticon">
+      <img class="thumb" src="https://img.youtube.com/vi/QMK-hacgwDc/maxresdefault.jpg" alt="Panopticon — plateforme de surveillance géospatiale 3D" loading="lazy" />
+      <div class="play-badge">
+        <span class="label-idle"><svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>&nbsp;Survoler pour l'aperçu</span>
+        <span class="label-live"><span class="live-dot"></span>Aperçu — 10&nbsp;s</span>
+      </div>
+      <div class="progress"></div>
+    </div>
+    <div class="content">
+      <div class="num">01 — Surveillance</div>
+      <h2><span class="grad-1">Panopticon</span><br />Voir la Terre. Tout comprendre.</h2>
+      <div class="tagline">Plateforme de surveillance géospatiale 3D</div>
+      <p class="desc">Panopticon transforme des flux de données bruts en une scène 3D vivante du globe. Suivez des mobiles en temps réel, rejouez leurs trajectoires, analysez les zones sensibles et gardez une vision d'ensemble permanente — comme si vous surviez la planète depuis l'orbite. Une salle de contrôle complète, dans votre navigateur.</p>
+      <div class="chips">
+        <span>Globe 3D temps réel</span>
+        <span>Suivi de mobiles</span>
+        <span>Rejeu de trajectoires</span>
+        <span>Analyse de zones</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ===================== SATCONFIG ===================== -->
+<section class="app" id="satconfig">
+  <div class="card">
+    <div class="media" data-video="TY0vklPGEIk" tabindex="0" role="button" aria-label="Aperçu vidéo de SatConfig">
+      <img class="thumb" src="https://img.youtube.com/vi/TY0vklPGEIk/maxresdefault.jpg" alt="SatConfig — planification de couverture satellite" loading="lazy" />
+      <div class="play-badge">
+        <span class="label-idle"><svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>&nbsp;Survoler pour l'aperçu</span>
+        <span class="label-live"><span class="live-dot"></span>Aperçu — 10&nbsp;s</span>
+      </div>
+      <div class="progress"></div>
+    </div>
+    <div class="content">
+      <div class="num">02 — Planification</div>
+      <h2><span class="grad-2">SatConfig</span><br />Votre mission, qualifiée en minutes.</h2>
+      <div class="tagline">Application de planification de couverture satellite</div>
+      <p class="desc">Définissez votre besoin, comparez les scénarios de constellation et visualisez instantanément la couverture 3D résultante. SatConfig qualifie votre mission de bout en bout — zones à couvrir, revisite, bilans — puis génère un brief PDF prêt à partager. Ce qui demandait des semaines d'études se joue désormais en quelques clics.</p>
+      <div class="chips">
+        <span>Scénarios de constellation</span>
+        <span>Couverture 3D</span>
+        <span>Qualification de mission</span>
+        <span>Export brief PDF</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ===================== SATCOM ENGINE ===================== -->
+<section class="app" id="satcom">
+  <div class="card">
+    <div class="media" data-video="kMqNnWUofyw" tabindex="0" role="button" aria-label="Aperçu vidéo du SATcom Coverage Engine">
+      <img class="thumb" src="https://img.youtube.com/vi/kMqNnWUofyw/maxresdefault.jpg" alt="SATcom Coverage Engine — moteur de bilan de liaison" loading="lazy" />
+      <div class="play-badge">
+        <span class="label-idle"><svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>&nbsp;Survoler pour l'aperçu</span>
+        <span class="label-live"><span class="live-dot"></span>Aperçu — 10&nbsp;s</span>
+      </div>
+      <div class="progress"></div>
+    </div>
+    <div class="content">
+      <div class="num">03 — Connectivité</div>
+      <h2><span class="grad-3">SATcom Coverage Engine</span><br />La physique du lien, en une API.</h2>
+      <div class="tagline">Moteur de calcul de couverture et de bilan de liaison SATCOM</div>
+      <p class="desc">Sous le capot des deux autres&nbsp;: un moteur de calcul qui évalue en temps réel la qualité des liaisons satellites, en orbite géostationnaire comme en constellation basse (GEO + LEO). Débit atteignable, marge de liaison, empreinte de couverture — tout est exposé via une API simple, prête à alimenter vos propres applications.</p>
+      <div class="chips">
+        <span>Bilan de liaison GEO + LEO</span>
+        <span>API FastAPI</span>
+        <span>Empreintes de couverture</span>
+        <span>Cloud Run</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="sep"></div>
+  Space Apps Portal — Panopticon · SatConfig · SATcom Coverage Engine
+</footer>
+
+<script>
+  // ----- Étoiles générées -----
+  (function () {
+    const stars = document.getElementById("stars");
+    for (let i = 0; i < 70; i++) {
+      const s = document.createElement("span");
+      s.style.left = Math.random() * 100 + "%";
+      s.style.top = Math.random() * 100 + "%";
+      s.style.animationDelay = (Math.random() * 4).toFixed(2) + "s";
+      s.style.animationDuration = (2.5 + Math.random() * 4).toFixed(2) + "s";
+      stars.appendChild(s);
+    }
+  })();
+
+  // ----- Parallaxe douce du fond (style keynote) -----
+  (function () {
+    const bg = document.getElementById("bg");
+    let ticking = false;
+    window.addEventListener("scroll", () => {
+      if (ticking) return;
+      ticking = true;
+      requestAnimationFrame(() => {
+        const y = window.scrollY * 0.06;
+        bg.style.transform = `scale(1.08) translateY(${-y}px)`;
+        ticking = false;
+      });
+    }, { passive: true });
+  })();
+
+  // ----- Révélation des cartes au scroll -----
+  (function () {
+    const observer = new IntersectionObserver((entries) => {
+      entries.forEach((e) => {
+        if (e.isIntersecting) {
+          e.target.classList.add("visible");
+          observer.unobserve(e.target);
+        }
+      });
+    }, { threshold: 0.25 });
+    document.querySelectorAll(".card").forEach((c) => observer.observe(c));
+  })();
+
+  // ----- Aperçu vidéo YouTube 10 s au survol -----
+  (function () {
+    const PREVIEW_MS = 10000;
+
+    document.querySelectorAll(".media").forEach((media) => {
+      const videoId = media.dataset.video;
+      let iframe = null;
+      let stopTimer = null;
+
+      function start() {
+        if (iframe) return;
+        iframe = document.createElement("iframe");
+        iframe.src =
+          "https://www.youtube-nocookie.com/embed/" + videoId +
+          "?autoplay=1&mute=1&controls=0&rel=0&modestbranding=1&playsinline=1&iv_load_policy=3&disablekb=1";
+        iframe.allow = "autoplay; encrypted-media";
+        iframe.title = "Aperçu vidéo";
+        media.appendChild(iframe);
+        media.classList.add("playing");
+        stopTimer = setTimeout(stop, PREVIEW_MS);
+      }
+
+      function stop() {
+        clearTimeout(stopTimer);
+        stopTimer = null;
+        if (iframe) {
+          iframe.remove();
+          iframe = null;
+        }
+        media.classList.remove("playing");
+      }
+
+      media.addEventListener("mouseenter", start);
+      media.addEventListener("mouseleave", stop);
+      // accessibilité clavier + mobile (tap)
+      media.addEventListener("focus", start);
+      media.addEventListener("blur", stop);
+      media.addEventListener("touchstart", () => (iframe ? stop() : start()), { passive: true });
+    });
+  })();
+</script>
+
+</body>
+</html>
