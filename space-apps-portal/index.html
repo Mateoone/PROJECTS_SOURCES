@@ -397,6 +397,44 @@
     border: 1px solid var(--glass-border);
   }
 
+  /* ----- Boutons d'action ----- */
+  .actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-top: 10px;
+  }
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 11px 20px;
+    border-radius: 999px;
+    font-size: 0.86rem;
+    font-weight: 600;
+    text-decoration: none;
+    transition: transform 0.25s ease, background 0.25s ease, border-color 0.25s ease;
+  }
+  .btn svg { width: 13px; height: 13px; fill: currentColor; }
+  .btn.primary {
+    background: rgba(255, 255, 255, 0.92);
+    color: #0a1220;
+  }
+  .btn.primary:hover {
+    transform: translateY(-2px);
+    background: #ffffff;
+  }
+  .btn.ghost {
+    color: var(--text);
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid var(--glass-border);
+  }
+  .btn.ghost:hover {
+    transform: translateY(-2px);
+    border-color: var(--glass-highlight);
+    background: rgba(255, 255, 255, 0.12);
+  }
+
   /* ---------- Footer ---------- */
   footer {
     text-align: center;
@@ -491,6 +529,10 @@
         <span>Rejeu de trajectoires</span>
         <span>Analyse de zones</span>
       </div>
+      <div class="actions">
+        <a class="btn primary" href="https://panopticon-58899663812.europe-west9.run.app" target="_blank" rel="noopener">Lancer l'application <svg viewBox="0 0 24 24"><path d="M14 3h7v7h-2V6.41l-9.29 9.3-1.42-1.42 9.3-9.29H14V3zM5 5h6v2H7v10h10v-4h2v6H5V5z"/></svg></a>
+        <a class="btn ghost" href="https://www.youtube.com/watch?v=QMK-hacgwDc" target="_blank" rel="noopener"><svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg> Voir la vidéo</a>
+      </div>
     </div>
   </div>
 </section>
@@ -517,6 +559,10 @@
         <span>Qualification de mission</span>
         <span>Export brief PDF</span>
       </div>
+      <div class="actions">
+        <a class="btn primary" href="https://satconfig-58899663812.europe-west9.run.app" target="_blank" rel="noopener">Lancer l'application <svg viewBox="0 0 24 24"><path d="M14 3h7v7h-2V6.41l-9.29 9.3-1.42-1.42 9.3-9.29H14V3zM5 5h6v2H7v10h10v-4h2v6H5V5z"/></svg></a>
+        <a class="btn ghost" href="https://www.youtube.com/watch?v=TY0vklPGEIk" target="_blank" rel="noopener"><svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg> Voir la vidéo</a>
+      </div>
     </div>
   </div>
 </section>
@@ -542,6 +588,10 @@
         <span>API FastAPI</span>
         <span>Empreintes de couverture</span>
         <span>Cloud Run</span>
+      </div>
+      <div class="actions">
+        <a class="btn primary" href="https://satcom-coverage-engine-58899663812.europe-west9.run.app/docs" target="_blank" rel="noopener">Explorer l'API <svg viewBox="0 0 24 24"><path d="M14 3h7v7h-2V6.41l-9.29 9.3-1.42-1.42 9.3-9.29H14V3zM5 5h6v2H7v10h10v-4h2v6H5V5z"/></svg></a>
+        <a class="btn ghost" href="https://www.youtube.com/watch?v=kMqNnWUofyw" target="_blank" rel="noopener"><svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg> Voir la vidéo</a>
       </div>
     </div>
   </div>
