@@ -505,7 +505,7 @@
 <!-- ===================== SATCOM ENGINE ===================== -->
 <section class="app" id="satcom" data-bg="satcom">
   <div class="card">
-    <div class="media" data-video="kMqNnWUofyw" tabindex="0" role="button" aria-label="Aperçu vidéo du SATcom Coverage Engine">
+    <div class="media" data-video="kMqNnWUofyw" data-start="50" tabindex="0" role="button" aria-label="Aperçu vidéo du SATcom Coverage Engine">
       <img class="thumb" src="https://img.youtube.com/vi/kMqNnWUofyw/maxresdefault.jpg" alt="SATcom Coverage Engine — moteur de bilan de liaison" loading="lazy" />
       <div class="play-badge">
         <span class="label-idle"><svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>&nbsp;Survoler pour l'aperçu</span>
@@ -600,6 +600,7 @@
 
     document.querySelectorAll(".media").forEach((media) => {
       const videoId = media.dataset.video;
+      const startAt = parseInt(media.dataset.start || "0", 10);
       let iframe = null;
       let stopTimer = null;
 
@@ -608,7 +609,8 @@
         iframe = document.createElement("iframe");
         iframe.src =
           "https://www.youtube-nocookie.com/embed/" + videoId +
-          "?autoplay=1&mute=1&controls=0&rel=0&modestbranding=1&playsinline=1&iv_load_policy=3&disablekb=1";
+          "?autoplay=1&mute=1&controls=0&rel=0&modestbranding=1&playsinline=1&iv_load_policy=3&disablekb=1" +
+          (startAt > 0 ? "&start=" + startAt : "");
         iframe.allow = "autoplay; encrypted-media";
         iframe.title = "Aperçu vidéo";
         media.appendChild(iframe);
