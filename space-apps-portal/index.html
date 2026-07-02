@@ -98,6 +98,17 @@
     -webkit-backdrop-filter: blur(22px) saturate(160%);
     box-shadow: 0 8px 32px rgba(0, 0, 0, 0.35);
   }
+  nav .mip {
+    display: flex;
+    align-items: center;
+    padding: 6px 8px 6px 14px;
+  }
+  nav .mip img {
+    height: 15px;
+    width: auto;
+    display: block;
+    opacity: 0.95;
+  }
   nav .brand {
     font-weight: 700;
     font-size: 0.85rem;
@@ -398,6 +409,13 @@
     margin: 0 auto 24px;
     background: linear-gradient(90deg, transparent, var(--glass-border), transparent);
   }
+  footer .mip-footer {
+    height: 22px;
+    width: auto;
+    display: block;
+    margin: 0 auto 16px;
+    opacity: 0.65;
+  }
 
   /* ---------- Responsive ---------- */
   @media (max-width: 860px) {
@@ -434,6 +452,7 @@
 <div class="stars" id="stars"></div>
 
 <nav>
+  <span class="mip"><img src="mip-logo.svg" alt="MIP" /></span>
   <span class="brand">Space Apps</span>
   <a href="#panopticon">Panopticon</a>
   <a href="#satconfig">SatConfig</a>
@@ -530,6 +549,7 @@
 
 <footer>
   <div class="sep"></div>
+  <img class="mip-footer" src="mip-logo.svg" alt="MIP" />
   Space Apps Portal — Panopticon · SatConfig · SATcom Coverage Engine
 </footer>
 
