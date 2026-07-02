@@ -435,6 +435,78 @@
     background: rgba(255, 255, 255, 0.12);
   }
 
+  /* ----- Lightbox vidéo ----- */
+  .video-modal {
+    position: fixed;
+    inset: 0;
+    z-index: 200;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.35s ease;
+  }
+  .video-modal.open {
+    opacity: 1;
+    pointer-events: auto;
+  }
+  .video-modal .backdrop {
+    position: absolute;
+    inset: 0;
+    background: rgba(2, 4, 10, 0.72);
+    backdrop-filter: blur(18px) saturate(140%);
+    -webkit-backdrop-filter: blur(18px) saturate(140%);
+  }
+  .video-modal .frame {
+    position: relative;
+    width: min(1000px, 100%);
+    border-radius: var(--radius-lg);
+    background: rgba(10, 16, 30, 0.6);
+    border: 1px solid var(--glass-border);
+    box-shadow: 0 40px 100px rgba(0, 0, 0, 0.6), inset 0 1px 0 var(--glass-highlight);
+    padding: 14px;
+    transform: translateY(26px) scale(0.97);
+    transition: transform 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  .video-modal.open .frame {
+    transform: translateY(0) scale(1);
+  }
+  .video-modal .player {
+    aspect-ratio: 16 / 9;
+    border-radius: 12px;
+    overflow: hidden;
+    background: #000;
+  }
+  .video-modal .player iframe {
+    width: 100%;
+    height: 100%;
+    border: 0;
+    display: block;
+  }
+  .video-modal .close {
+    position: absolute;
+    top: -16px;
+    right: -16px;
+    width: 38px;
+    height: 38px;
+    border-radius: 50%;
+    border: 1px solid var(--glass-border);
+    background: rgba(10, 16, 30, 0.85);
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
+    color: var(--text);
+    font-size: 1.05rem;
+    line-height: 1;
+    cursor: pointer;
+    transition: transform 0.2s ease, background 0.2s ease;
+  }
+  .video-modal .close:hover {
+    transform: scale(1.1);
+    background: rgba(255, 255, 255, 0.15);
+  }
+
   /* ---------- Footer ---------- */
   footer {
     text-align: center;
@@ -598,6 +670,14 @@
   </div>
 </section>
 
+<div class="video-modal" id="video-modal" role="dialog" aria-modal="true" aria-label="Lecteur vidéo">
+  <div class="backdrop"></div>
+  <div class="frame">
+    <button class="close" aria-label="Fermer">✕</button>
+    <div class="player"></div>
+  </div>
+</div>
+
 <footer>
   <div class="sep"></div>
   <img class="mip-footer" src="mip-logo.svg" alt="MIP" />
@@ -663,6 +743,45 @@
       });
     }, { threshold: 0.25 });
     document.querySelectorAll(".card").forEach((c) => observer.observe(c));
+  })();
+
+  // ----- Lightbox : lecture des vidéos dans la page -----
+  (function () {
+    const modal = document.getElementById("video-modal");
+    const player = modal.querySelector(".player");
+    const closeBtn = modal.querySelector(".close");
+    const backdrop = modal.querySelector(".backdrop");
+
+    function open(videoId) {
+      player.innerHTML =
+        '<iframe src="https://www.youtube-nocookie.com/embed/' + videoId +
+        '?autoplay=1&rel=0&modestbranding=1&playsinline=1" ' +
+        'allow="autoplay; encrypted-media; fullscreen" allowfullscreen title="Vidéo de présentation"></iframe>';
+      modal.classList.add("open");
+      document.body.style.overflow = "hidden";
+      closeBtn.focus();
+    }
+
+    function close() {
+      modal.classList.remove("open");
+      document.body.style.overflow = "";
+      // coupe le son/la lecture immédiatement
+      player.innerHTML = "";
+    }
+
+    document.querySelectorAll('.actions a[href*="youtube.com/watch"]').forEach((a) => {
+      const videoId = new URL(a.href).searchParams.get("v");
+      a.addEventListener("click", (e) => {
+        e.preventDefault();
+        open(videoId);
+      });
+    });
+
+    closeBtn.addEventListener("click", close);
+    backdrop.addEventListener("click", close);
+    document.addEventListener("keydown", (e) => {
+      if (e.key === "Escape" && modal.classList.contains("open")) close();
+    });
   })();
 
   // ----- Aperçu vidéo YouTube 10 s au survol -----
